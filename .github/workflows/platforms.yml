@@ -1,0 +1,38 @@
+name: Platform compatibility
+
+on: [push, pull_request, workflow_dispatch]
+
+permissions:
+  contents: read
+
+jobs:
+  native:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+        python: ["3.10", "3.14"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install ".[dev]"
+      - run: any2llm --lang en --help
+      - run: python -m pytest -q
+
+  alpine:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install and test with musl
+        run: |
+          docker run --rm -v "$PWD:/source:ro" python:3.13-alpine sh -ec '
+            apk add --no-cache build-base cargo libxml2-dev libxslt-dev jpeg-dev zlib-dev
+            cp -R /source /tmp/project
+            cd /tmp/project
+            python -m pip install ".[dev]"
+            any2llm --lang en --help
+            python -m pytest -q
+          '

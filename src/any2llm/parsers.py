@@ -3,6 +3,7 @@
 import codecs
 import mimetypes
 import re
+import subprocess
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from html import escape
@@ -21,6 +22,12 @@ from .cleaner import clean_pages, clean_text
 
 _CONTROL = re.compile(r"[\x00-\x08\x0e-\x1f\x7f-\x9f]")
 _IMAGE_SIGNATURES = (b"\x89PNG\r\n\x1a\n", b"\xff\xd8\xff", b"GIF87a", b"GIF89a")
+# Common media extensions must also work without a system MIME database.
+_MEDIA = {
+    **dict.fromkeys((".jpg", ".jpeg", ".png", ".webp", ".svg", ".gif", ".heic"), "image"),
+    **dict.fromkeys((".mp4", ".m4v", ".mov", ".mkv", ".avi", ".webm"), "video"),
+    **dict.fromkeys((".mp3", ".m4a", ".wav", ".aac", ".flac", ".ogg"), "audio"),
+}
 _SOURCE = set("""
     .c .cc .cpp .cs .css .go .h .hpp .html .java .js .jsx .kt .lua .php .pl
     .py .rb .rs .sh .sql .swift .ts .tsx .xml .yaml .yml .json .toml
@@ -28,9 +35,18 @@ _SOURCE = set("""
 
 
 @dataclass(frozen=True)
+class PdfPage:
+    number: int
+    text: str
+    partial: bool = False
+    no_text: bool = False
+
+
+@dataclass(frozen=True)
 class ParsedFile:
     file_type: str
     text: str
+    pages: tuple[PdfPage, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -87,11 +103,54 @@ def _plain(stream: BinaryIO, path: Path, mime: str) -> ParsedFile | SkippedFile:
     return ParsedFile(suffix[1:].upper() if suffix else "Text", content)
 
 
-def _pdf(stream: BinaryIO) -> ParsedFile | SkippedFile:
+def _pdftotext(path: Path, number: int) -> str:
+    try:
+        result = subprocess.run(
+            ["pdftotext", "-f", str(number), "-l", str(number),
+             "-layout", "-nopgbrk", "-enc", "UTF-8", str(path.absolute()), "-"],
+            stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+            check=True, timeout=10,
+        )
+        return result.stdout.decode("utf-8")
+    except (OSError, subprocess.SubprocessError, UnicodeDecodeError):
+        return ""
+
+
+def _damaged_pdf_text(text: str) -> bool:
+    return bool(_CONTROL.search(text) or "\ufffd" in text)
+
+
+def _pdf(stream: BinaryIO, path: Path) -> ParsedFile | SkippedFile:
     reader = PdfReader(stream, strict=True)
     if reader.is_encrypted:
         return SkippedFile("encrypted")
-    return ParsedFile("PDF", clean_pages([page.extract_text() or "" for page in reader.pages]))
+    texts = []
+    partial = set()
+    for number, page in enumerate(reader.pages, 1):
+        try:
+            text = page.extract_text() or ""
+        except Exception:
+            # A damaged page can fail independently of the rest of the PDF.
+            text = ""
+        else:
+            if not _damaged_pdf_text(text):
+                texts.append(text)
+                continue
+        recovered = _pdftotext(path, number)
+        if recovered.strip() and not _damaged_pdf_text(recovered):
+            texts.append(recovered)
+        else:
+            partial.add(number)
+            texts.append(_CONTROL.sub("\ufffd", text or recovered))
+
+    pages = tuple(
+        PdfPage(number, cleaned, number in partial, not raw.replace("\ufffd", "").strip())
+        for number, (raw, cleaned) in enumerate(zip(texts, clean_pages(texts)), 1)
+    )
+    text = "\n\n".join(page.text for page in pages if page.text)
+    if not text.replace("\ufffd", "").strip():
+        return SkippedFile("invalid" if partial else "no_pdf_text")
+    return ParsedFile("PDF", text, pages)
 
 
 def _markdown_table(rows: Iterable[Iterable[object]]) -> str:
@@ -163,17 +222,19 @@ def parse_file(path: Path) -> ParsedFile | SkippedFile:
     """Parse one file, isolating malformed documents and filesystem errors."""
     path = Path(path)
     suffix = path.suffix.lower()
+    if suffix in _MEDIA:
+        return SkippedFile(_MEDIA[suffix])
     mime = mimetypes.guess_type(path.name)[0] or ""
     if mime.startswith("image/"):
         return SkippedFile("image")
     if mime.startswith(("audio/", "video/")) and suffix not in _SOURCE:
-        return SkippedFile("binary")
+        return SkippedFile(mime.partition("/")[0])
     if suffix in {".bin", ".doc", ".ppt", ".xls", ".rtf", ".zip", ".exe"}:
         return SkippedFile("unsupported")
     try:
         with path.open("rb") as stream:
             if suffix == ".pdf":
-                return _pdf(stream)
+                return _pdf(stream, path)
             if suffix in _OFFICE:
                 if stream.read(8) == b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1":
                     # Password-protected Office packages use a compound file container.

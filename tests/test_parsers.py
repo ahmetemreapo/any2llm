@@ -1,3 +1,5 @@
+from subprocess import CalledProcessError, CompletedProcess, TimeoutExpired
+from unittest.mock import Mock
 from zipfile import ZipFile
 
 import pytest
@@ -8,7 +10,8 @@ from pptx.util import Inches
 from pypdf import PdfWriter
 from pypdf.generic import DecodedStreamObject, DictionaryObject, NameObject
 
-from any2llm.parsers import ParsedFile, SkippedFile, parse_file
+from any2llm import parsers
+from any2llm.parsers import ParsedFile, PdfPage, SkippedFile, parse_file
 
 
 @pytest.mark.parametrize("encoding", ["utf-8", "utf-8-sig", "utf-16", "utf-32", "cp1252"])
@@ -45,10 +48,65 @@ def test_pdf_text_and_margins(tmp_path):
         page[NameObject("/Contents")] = contents
     path = tmp_path / "report.pdf"
     writer.write(path)
-    assert parse_file(path) == ParsedFile("PDF", "Body 1\n\nBody 2")
+    assert parse_file(path) == ParsedFile("PDF", "Body 1\n\nBody 2", (
+        PdfPage(1, "Body 1"), PdfPage(2, "Body 2"),
+    ))
     writer.encrypt("password")
     writer.write(path)
     assert parse_file(path) == SkippedFile("encrypted")
+
+
+@pytest.mark.parametrize(("fallback", "expected"), [
+    (b"Educational Research\n", PdfPage(3, "Educational Research")),
+    (b"Educa\x00onal Research", PdfPage(3, "Educa\ufffdonal Research", partial=True)),
+    (b"\n", PdfPage(3, "Educa\ufffdonal Research", partial=True)),
+    (b"\xff", PdfPage(3, "Educa\ufffdonal Research", partial=True)),
+    (FileNotFoundError(), PdfPage(3, "Educa\ufffdonal Research", partial=True)),
+    (CalledProcessError(1, "pdftotext"), PdfPage(3, "Educa\ufffdonal Research", partial=True)),
+    (TimeoutExpired("pdftotext", 10), PdfPage(3, "Educa\ufffdonal Research", partial=True)),
+])
+def test_pdf_repairs_only_damaged_pages(tmp_path, monkeypatch, fallback, expected):
+    path = tmp_path / "report.pdf"
+    path.touch()
+    reader = Mock(is_encrypted=False, pages=[
+        Mock(extract_text=Mock(return_value=text))
+        for text in ("Introduction", "", "Educa\x00onal Research", "Results")
+    ])
+    monkeypatch.setattr(parsers, "PdfReader", Mock(return_value=reader))
+    run = Mock(side_effect=fallback) if isinstance(fallback, Exception) else Mock(
+        return_value=CompletedProcess("pdftotext", 0, stdout=fallback),
+    )
+    monkeypatch.setattr(parsers.subprocess, "run", run)
+
+    parsed = parse_file(path)
+    assert parsed.pages == (
+        PdfPage(1, "Introduction"), PdfPage(2, "", no_text=True), expected, PdfPage(4, "Results"),
+    )
+    assert parsed.text == f"Introduction\n\n{expected.text}\n\nResults"
+    run.assert_called_once()
+    assert run.call_args.args[0] == [
+        "pdftotext", "-f", "3", "-l", "3", "-layout", "-nopgbrk", "-enc", "UTF-8", str(path), "-",
+    ]
+
+
+def test_pdf_distinguishes_margin_cleanup_from_missing_text(tmp_path, monkeypatch):
+    path = tmp_path / "report.pdf"
+    path.touch()
+    reader = Mock(is_encrypted=False, pages=[
+        Mock(extract_text=Mock(return_value=text))
+        for text in ("Introduction", "Page 2 of 5", "  \n", "\ufffd", "Results")
+    ])
+    monkeypatch.setattr(parsers, "PdfReader", Mock(return_value=reader))
+    monkeypatch.setattr(parsers, "_pdftotext", lambda *_: "")
+    assert parse_file(path) == ParsedFile("PDF", "Introduction\n\n\ufffd\n\nResults", (
+        PdfPage(1, "Introduction"),
+        PdfPage(2, ""),
+        PdfPage(3, "", no_text=True),
+        PdfPage(4, "\ufffd", partial=True, no_text=True),
+        PdfPage(5, "Results"),
+    ))
+    reader.pages = reader.pages[2:3]
+    assert parse_file(path) == SkippedFile("no_pdf_text")
 
 
 def test_docx_preserves_paragraph_and_table_order(tmp_path):

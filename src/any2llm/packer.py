@@ -1,28 +1,32 @@
 """Pack selected, parsed files into token-limited Markdown documents."""
 
 import re
+from bisect import bisect_right
 from collections import Counter
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
 from pathlib import Path
-from tempfile import TemporaryDirectory
 from xml.etree import ElementTree as ET
 
+from .output import write_pack
 from .parsers import ParsedFile
 from .tokenizer import count_tokens
 
 PRESETS = {"High Detail": 12_000, "Balanced": 25_000, "Single File": None}
-_BATCH_NAME = re.compile(r"batch_[0-9]{2,}_of_[0-9]+\.md")
 _INVALID_XML = re.compile(r"[^\x09\x0a\x0d\x20-\ud7ff\ue000-\ufffd\U00010000-\U0010ffff]")
-
-
-def is_batch_name(name: str) -> bool:
-    return _BATCH_NAME.fullmatch(name) is not None
 
 
 def _xml_text(text: str) -> str:
     # Represent characters XML 1.0 cannot encode, including surrogateescaped paths.
     return _INVALID_XML.sub(lambda match: ascii(match[0])[1:-1], text)
+
+
+@dataclass(frozen=True)
+class _PageStart:
+    offset: int
+    number: int
+    partial: bool
+    no_text: bool
 
 
 @dataclass(frozen=True)
@@ -32,6 +36,32 @@ class _Part:
     file_type: str
     text: str
     number: int = 0
+    pages: tuple[_PageStart, ...] = ()
+    start: int = 0
+    end: int | None = None
+
+
+def _render_content(block: ET.Element, part: _Part) -> None:
+    if not part.pages:
+        block.text = part.text[part.start:part.end]
+        return
+
+    end = len(part.text) if part.end is None else part.end
+    first = bisect_right(part.pages, part.start, key=lambda page: page.offset) - 1
+    block.text = "\n"
+    for index in range(first, len(part.pages)):
+        page = part.pages[index]
+        if page.offset >= end:
+            break
+        next_offset = part.pages[index + 1].offset if index + 1 < len(part.pages) else end
+        element = ET.SubElement(block, "page", number=str(page.number))
+        if page.partial:
+            element.set("status", "partial")
+        if page.no_text:
+            element.set("extraction", "no-extractable-text")
+        content = part.text[max(part.start, page.offset):min(end, next_offset)]
+        element.text = content.removesuffix("\0")
+        element.tail = "\n"
 
 
 def _render(parts: list[_Part], number: int, total: int, counts: Counter[str]) -> str:
@@ -43,7 +73,7 @@ def _render(parts: list[_Part], number: int, total: int, counts: Counter[str]) -
             attrs["part"] = f"{part.number}/{counts[part.id] or 1}"
         ET.SubElement(manifest, "entry", attrs)
         block = ET.Element("file", attrs)
-        block.text = part.text
+        _render_content(block, part)
         blocks.append(ET.tostring(block, encoding="unicode", short_empty_elements=False))
     ET.indent(manifest)
     return "\n\n".join([ET.tostring(manifest, encoding="unicode"), *blocks]) + "\n"
@@ -95,13 +125,13 @@ def _group(files: list[_Part], limit: int, total: int, counts: Counter[str]) -> 
         start = 0
         number = 1
         while start < len(file.text):
-            part = replace(file, number=number)
+            part = replace(file, number=number, start=start)
 
             def prefix_fits(prefix: str) -> bool:
-                return fits(replace(part, text=prefix))
+                return fits(replace(part, end=start + len(prefix)))
 
             end = _split_end(file.text, start, limit, prefix_fits)
-            batches[-1].append(replace(part, text=file.text[start:end]))
+            batches[-1].append(replace(part, end=end))
             start = end
             number += 1
             if start < len(file.text):
@@ -129,6 +159,23 @@ def _documents(files: list[_Part], limit: int | None) -> list[str]:
         reserved_counts |= counts
 
 
+def _pack_file(file_id: str, path: Path, parsed: ParsedFile) -> _Part:
+    name, file_type = _xml_text(path.as_posix()), _xml_text(parsed.file_type)
+    if not parsed.pages:
+        return _Part(file_id, name, file_type, _xml_text(parsed.text))
+
+    pages = []
+    texts = []
+    offset = 0
+    for page in parsed.pages:
+        # An empty page needs one position of its own when splitting a PDF.
+        text = _xml_text(page.text) or "\0"
+        pages.append(_PageStart(offset, page.number, page.partial, page.no_text))
+        texts.append(text)
+        offset += len(text)
+    return _Part(file_id, name, file_type, "".join(texts), pages=tuple(pages))
+
+
 def build_batches(
     selected: Mapping[Path, ParsedFile],
     *,
@@ -140,31 +187,11 @@ def build_batches(
     if limit is not None and limit < 1:
         raise ValueError("Token limit must be positive.")
     files = [
-        _Part(str(i), _xml_text(path.as_posix()), _xml_text(parsed.file_type), _xml_text(parsed.text))
+        _pack_file(str(i), path, parsed)
         for i, (path, parsed) in enumerate(selected.items(), 1)
     ]
     docs = _documents(files, limit)
     return {f"batch_{i:02d}_of_{len(docs)}.md": doc for i, doc in enumerate(docs, 1)}
-
-
-def write_pack(output_dir: Path, documents: Mapping[str, str]) -> list[Path]:
-    """Stage all documents before replacing the previous pack."""
-    if not documents:
-        return []
-
-    output_dir.mkdir(parents=True, exist_ok=True)
-    paths = [output_dir / name for name in documents]
-    with TemporaryDirectory(dir=output_dir) as staging:
-        for path in paths:
-            if path.is_dir():
-                raise IsADirectoryError(f"Output path is a directory: {path}")
-            (Path(staging) / path.name).write_text(documents[path.name], encoding="utf-8", newline="\n")
-        for path in paths:
-            (Path(staging) / path.name).replace(path)
-    for stale in set(output_dir.iterdir()).difference(paths):
-        if is_batch_name(stale.name) and stale.is_file():
-            stale.unlink()
-    return paths
 
 
 def write_batches(

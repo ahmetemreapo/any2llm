@@ -20,3 +20,6 @@ any2llm = "any2llm.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+any2llm = ["locales/*.json"]

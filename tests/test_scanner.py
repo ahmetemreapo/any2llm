@@ -27,12 +27,16 @@ def test_content_detection(tmp_path):
     (tmp_path / "fake.txt").write_bytes(b"x" * 65536 + b"\x00")
     (tmp_path / "data").write_bytes(b"\xff")
     (tmp_path / "art.SVG").write_text("<svg/>")
+    (tmp_path / "video.mp4").touch()
+    (tmp_path / "audio.mp3").touch()
+    (tmp_path / "page.html").write_text("<h1>Title</h1>")
     (tmp_path / "picture").write_bytes(b"\x89PNG\r\n\x1a\n")
     result = scan_folder(tmp_path)
-    assert result.readable == [Path("notes"), Path("script")]
+    assert result.readable == [Path("notes"), Path("page.html"), Path("script")]
     assert result.skipped == {
         Path("fake.txt"): "binary", Path("data"): "binary",
         Path("art.SVG"): "image", Path("picture"): "image",
+        Path("video.mp4"): "video", Path("audio.mp3"): "audio",
     }
 
 
@@ -56,8 +60,10 @@ def test_pdf_and_encryption(tmp_path):
     writer.write(tmp_path / "locked.pdf")
     (tmp_path / "broken.pdf").touch()
     result = scan_folder(tmp_path)
-    assert result.readable == [Path("ok.pdf")]
-    assert result.skipped == {Path("locked.pdf"): "encrypted", Path("broken.pdf"): "invalid"}
+    assert result.readable == []
+    assert result.skipped == {
+        Path("ok.pdf"): "no_pdf_text", Path("locked.pdf"): "encrypted", Path("broken.pdf"): "invalid",
+    }
 
 
 def test_read_error_does_not_stop_scan(tmp_path, monkeypatch):

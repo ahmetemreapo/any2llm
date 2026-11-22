@@ -5,7 +5,7 @@ import pytest
 
 from any2llm import tokenizer
 from any2llm.packer import write_batches
-from any2llm.parsers import ParsedFile
+from any2llm.parsers import ParsedFile, PdfPage
 
 
 @pytest.fixture(autouse=True)
@@ -79,12 +79,31 @@ def test_exact_limit_and_failed_repack_preserve_output(tmp_path):
     assert path.read_text() == original
 
 
+def test_split_pdf_keeps_missing_pages_and_repeats_partial_status(tmp_path):
+    body = "A & B\n" * 200
+    pages = (
+        PdfPage(1, "Introduction"), PdfPage(2, "", no_text=True),
+        PdfPage(3, body, partial=True), PdfPage(4, "Results"),
+    )
+    files = {Path("report.pdf"): ParsedFile("PDF", f"Introduction\n\n{body}\n\nResults", pages)}
+    docs = read_batches(write_batches(files, tmp_path, max_tokens=100), limit=100)
+    elements = [page for batch in docs for block in batch for page in block.findall("page")]
+    assert elements[0].attrib == {"number": "1"}
+    assert elements[1].attrib == {"number": "2", "extraction": "no-extractable-text"}
+    assert elements[1].text is None
+    assert elements[-1].attrib == {"number": "4"}
+    middle = elements[2:-1]
+    assert len(middle) > 1
+    assert all(page.attrib == {"number": "3", "status": "partial"} for page in middle)
+    assert "".join(page.text for page in middle) == body
+
+
 def test_rerun_clears_obsolete_batches(tmp_path):
     selected = {Path("a.md"): ParsedFile("MD", "one line\n" * 300)}
     previous = write_batches(selected, tmp_path, max_tokens=100)
     unrelated = tmp_path / "notes.md"
     unrelated.write_text("keep me")
     current = write_batches(selected, tmp_path, preset="Single File")
-    assert set(tmp_path.iterdir()) == {*current, unrelated}
+    assert set(tmp_path.glob("*.md")) == {*current, unrelated}
     assert len(previous) > len(current)
     assert unrelated.read_text() == "keep me"

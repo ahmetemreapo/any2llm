@@ -12,8 +12,8 @@ def clean_text(text: str) -> str:
     return re.sub(r"\n{3,}", "\n\n", "\n".join(lines)).strip("\n")
 
 
-def clean_pages(pages: list[str]) -> str:
-    """Remove page numbers and recurring first/last lines from PDF pages."""
+def clean_pages(pages: list[str]) -> list[str]:
+    """Clean PDF margins while retaining a slot for every physical page."""
     bodies = []
     for number, page in enumerate(pages, 1):
         lines = clean_text(page).splitlines()
@@ -23,17 +23,16 @@ def clean_pages(pages: list[str]) -> str:
                 if margin == str(number) or _PAGE_NUMBER.fullmatch(margin):
                     lines.pop(edge)
         lines = "\n".join(lines).strip("\n").splitlines()
-        if lines:
-            bodies.append(lines)
+        bodies.append(lines)
 
     headers = Counter(lines[0] for lines in bodies if len(lines) > 1)
     footers = Counter(lines[-1] for lines in bodies if len(lines) > 1)
-    threshold = max(2, len(bodies) // 2 + 1)
+    threshold = max(2, sum(bool(lines) for lines in bodies) // 2 + 1)
     cleaned = []
     for lines in bodies:
         if len(lines) > 1 and headers[lines[0]] >= threshold:
             lines = lines[1:]
         if len(lines) > 1 and footers[lines[-1]] >= threshold:
             lines = lines[:-1]
-        cleaned.append("\n".join(lines))
-    return clean_text("\n\n".join(cleaned))
+        cleaned.append(clean_text("\n".join(lines)))
+    return cleaned

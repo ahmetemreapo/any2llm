@@ -1,61 +1,47 @@
-# SPEC.md — any2llm
+# any2llm
 
-## Goal
-`any2llm` is an open-source CLI tool that converts mixed files in a folder (PDF, DOCX, PPTX, XLSX, code, text) into token-balanced Markdown batches with multi-turn prompts so users can bypass LLM file upload limits without losing detail.
+Convert a folder of mixed documents, code, and text into Markdown batches for an LLM conversation.
 
-## Target Directory Structure
-any2llm/
-├── pyproject.toml
-├── README.md
-├── LICENSE
-├── AGENTS.md
-├── SPEC.md
-├── src/
-│   └── any2llm/
-│       ├── __init__.py
-│       ├── cli.py          # Entry point, CLI args, interactive flow
-│       ├── scanner.py      # Folder scan, ignore rules, binary detection
-│       ├── parsers.py      # Extractors for text/code, pdf, docx, pptx, xlsx
-│       ├── cleaner.py      # Whitespace and repetitive page noise cleanup
-│       ├── tokenizer.py    # Token counting (tiktoken cl100k_base + fallback)
-│       ├── packer.py       # Token-balanced batching, large-file splitting, XML manifest
-│       └── prompts.py      # Multi-turn anti-laziness prompts (en/tr) + clipboard helper
-└── tests/
+## First-run setup
+
+Run `any2llm` in the source folder or pass a folder path. The wizard first asks for a language in your system locale. It offers English, Simplified Mandarin Chinese, Hindi, Spanish, French, Arabic, Bengali, Portuguese, Russian, Urdu, and Turkish. Unsupported system locales use English. The first run highlights the detected language. The remaining questions immediately use the language you choose. Choose a default detail level and whether to open the output folder automatically (enabled by default).
+
+| Detail level | Batch limit |
+| --- | --- |
+| Maximum Detail | 12,000 tokens |
+| Balanced (recommended, default) | 25,000 tokens |
+| Single File | Unlimited, without splitting |
+
+The wizard saves preferences in `~/.config/any2llm/config.json` and continues to file selection. Run `any2llm setup` or `any2llm --config` to review the saved choices and change them. An interactive terminal is required for setup. Without an interactive terminal, `-y` uses the saved preferences or temporary defaults.
+
+## Daily use
+
+1. Scan the folder, optionally including subdirectories. Ignore hidden files and directories, dependency and cache directories, and the output directory. Extract text from PDF, DOCX, PPTX, XLSX, code, and plain text. Report skipped files, reasons, and suggested next steps in the active language.
+2. A single checkbox lists readable files. All start checked. Use Space to toggle and Enter to confirm. Use `--plain` for numbered choices and full filenames.
+3. Write `batch_01_of_N.md` and subsequent numbered batches to `_llm_pack/`. Each starts with an XML `<manifest>` followed by matching `<file>` blocks. Oversized files have numbered parts with a shared file ID. The output folder records which files belong to the pack. Reruns replace or remove only recorded files whose contents still match. For destination conflicts, choose another folder with `-o`.
+4. Save one master prompt to `PROMPT.txt` and automatically try to copy it to the clipboard. Confirm whether the copy succeeded. If the clipboard is unavailable, show how to copy the saved instructions manually. The output folder opens in the system file manager when enabled.
+5. Attach all batch files to the chat together and paste the prompt once. By default, the prompt requests a thorough analysis and synthesis. With `--task`, it asks for an answer in the task's scope and format, with citations and any relevant gaps in the evidence. For multiple batches, the LLM processes the files in order and waits for the localized continuation word between batches. With a custom task, intermediate replies report relevant findings and the final reply combines them into the requested output. The terminal command exits as soon as packing and handoff are complete.
+
+Each packed PDF retains its physical page numbers in `<page number="…">` elements, including on pages that span multiple batches. Pages with no extractable text have the attribute `extraction="no-extractable-text"`. The terminal reports these pages for packed files and groups consecutive numbers into ranges. Extraction is assessed before removing repeated headers and footers. If a page's text extraction is damaged, the optional `pdftotext` utility can retry that page. If the retry fails, `status="partial"` marks the affected page and any readable text is kept. PDFs without any usable text are skipped and reported at file level.
+
+## Command-line options
+
+| Option | Effect |
+| --- | --- |
+| `folder` | Folder to scan, defaults to the current directory |
+| `-r`, `--recursive` | Include subdirectories |
+| `--lang CODE` | Override the terminal and master prompt language |
+| `--max-tokens INT` | Override the batch limit with a positive integer |
+| `--task TEXT` | Use a custom task to set the scope and format of the master prompt |
+| `--no-open` | Skip opening the file manager |
+| `-o DIR`, `--output DIR` | Output directory, relative to the scanned folder unless absolute |
+| `-y`, `--yes` | Automatically select all readable files |
+| `--plain` | Use numbered menus |
+| `--details` | List all files left out |
+| `-h`, `--help` | Show help |
+
+Packing overrides apply only to the current run. The older `--ui-lang` spelling accepts the same language codes as `--lang`. The former `id` value is still accepted for compatibility and leaves the active language unchanged.
 
 ## Dependencies
-- `pypdf` (PDF)
-- `python-docx` (Word)
-- `python-pptx` (PowerPoint)
-- `openpyxl` (Excel)
-- `tiktoken` (token counting)
-- `questionary` (interactive checkbox UI)
-- `rich` (clean terminal tables and status)
-- `pyperclip` (clipboard copy)
-- `pytest` (dev dependency for tests)
 
-## Core User Flow
-1. User runs `any2llm` inside any folder (or `any2llm /path/to/dir`).
-2. Tool scans files in that folder (non-recursive by default; optional `-r/--recursive`), ignoring hidden files, `.git`, `.venv`, `node_modules`, `__pycache__`, and `_llm_pack`.
-3. Tool parses readable files and estimates token counts. Unreadable/binary/image files are separated into a "Skipped (attach manually)" list.
-4. Interactive checkbox menu (`questionary`) lists all readable files with file type and token count. ALL files are checked by default. User toggles unwanted files with Space and confirms with Enter.
-5. User selects a detail preset:
-   - High Detail (~12,000 tokens per batch)
-   - Balanced (~25,000 tokens per batch)
-   - Single File (no split)
-6. User optionally types a custom task/goal (e.g., "Explain every topic in detail for my exam") or presses Enter to use the default deep-analysis instruction.
-7. Tool writes output to `_llm_pack/`:
-   - `batch_01_of_N.md`, `batch_02_of_N.md`, ...
-   - `PROMPTS.md` containing all turn prompts.
-8. Each batch Markdown file starts with an XML `<manifest>` listing batch number, total batches, and included files, followed by `<file id="..." name="..." type="...">` blocks. If a single file exceeds the batch token limit, split it cleanly into numbered parts (`part 1/2`, `part 2/2`).
-9. Interactive Clipboard Walkthrough:
-   - Copy Turn 1 prompt to clipboard automatically and tell the user which batch file to upload.
-   - Wait for Enter, then copy Turn 2 prompt, and repeat until the final batch.
-   - Final turn prompt instructs the LLM to analyze the last batch AND synthesize all previous turns in full detail.
-
-## CLI Flags
-- `path` (optional, defaults to current directory)
-- `-r, --recursive` (include subdirectories)
-- `--max-tokens INT` (override batch token limit)
-- `--lang [en|tr]` (language for generated LLM prompts, default `en`)
-- `-o, --output DIR` (output folder name, default `_llm_pack`)
-- `-y, --yes` (skip interactive prompts and pack all files immediately)
+Use pypdf, python-docx, python-pptx, and openpyxl for document extraction, tiktoken with an offline fallback for token counts, questionary for interactive selection, and pyperclip for clipboard access. Rich is available for terminal formatting. Use pytest for tests.

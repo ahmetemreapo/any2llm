@@ -11,11 +11,11 @@ def test_repeated_page_margins_and_numbering():
         "Handbook\nFirst\nShared body line\nDraft\nPage 1 of 3",
         "Handbook\nSecond\nShared body line\nDraft\nPage 2 of 3",
         "Appendix\nOther material\n3",
-    ]) == "First\nShared body line\n\nSecond\nShared body line\n\nAppendix\nOther material"
+    ]) == ["First\nShared body line", "Second\nShared body line", "Appendix\nOther material"]
 
 
 def test_preserve_short_pages_and_unique_edges():
-    assert clean_pages(["", "Only one line", "Only one line", "Last\npage text"]) == (
-        "Only one line\n\nOnly one line\n\nLast\npage text"
-    )
-    assert clean_pages([]) == ""
+    assert clean_pages(["", "Only one line", "Only one line", "Last\npage text"]) == [
+        "", "Only one line", "Only one line", "Last\npage text",
+    ]
+    assert clean_pages([]) == []

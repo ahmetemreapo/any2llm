@@ -8,9 +8,10 @@ import questionary
 
 from .messages import MESSAGES
 from .scanner import scan_folder
+from .tokenizer import count_tokens, get_encoding
 
 
-def display_path(path: Path) -> str:
+def display_path(path: Path | str) -> str:
     return "".join(c if c.isprintable() else ascii(c)[1:-1] for c in str(path))
 
 
@@ -18,21 +19,23 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(add_help=False, allow_abbrev=False, exit_on_error=False)
     parser.add_argument("folder", nargs="?", default=".", type=Path)
     parser.add_argument("-r", "--recursive", action="store_true")
-    parser.add_argument("--ui-lang", choices=MESSAGES, default="tr")
+    # Accept the previous UI language option for command-line compatibility.
+    parser.add_argument(
+        "--ui-lang", choices=("en", "tr", "zh", "hi", "es", "ar", "fr", "bn", "pt", "id", "ur"),
+        help=argparse.SUPPRESS,
+    )
     parser.add_argument("-h", "--help", action="store_true")
-    msg = MESSAGES["tr"]
+    msg = MESSAGES
     try:
         args, unknown = parser.parse_known_args(argv)
-        msg = MESSAGES[args.ui_lang]
         if unknown:
             raise ValueError
     except (ValueError, argparse.ArgumentError):
         print(msg["arguments"], "any2llm --help", file=sys.stderr)
         return 2
     if args.help:
-        print(f'any2llm [{msg["folder"]}] [-r] [--ui-lang {{{",".join(MESSAGES)}}}]')
+        print(f'any2llm [{msg["folder"]}] [-r]')
         print(f'  -r, --recursive   {msg["recursive"]}')
-        print(f'  --ui-lang         {msg["language"]}')
         return 0
     try:
         result = scan_folder(args.folder, args.recursive)
@@ -43,12 +46,17 @@ def main(argv: list[str] | None = None) -> int:
         print(f'{msg["skipped"]} ({len(result.skipped)})')
         for path, reason in result.skipped.items():
             print(f"  {display_path(path)} — {msg[reason]}")
-    if not result.readable:
+    if not result.parsed:
         print(msg["empty"])
         return 0
 
-    choices = [questionary.Choice(display_path(path), value=path, checked=True)
-               for path in result.readable]
+    prefix = "~" if get_encoding() is None else ""
+    choices = []
+    for path, parsed in result.parsed.items():
+        count = count_tokens(parsed.text)
+        unit = "token" if count == 1 else "tokens"
+        label = f"{display_path(path)} [{display_path(parsed.file_type)}, {prefix}{count:,} {unit}]"
+        choices.append(questionary.Choice(label, value=path, checked=True))
     try:
         selected = questionary.checkbox(
             msg["select"], choices, instruction=msg["keys"], erase_when_done=True,

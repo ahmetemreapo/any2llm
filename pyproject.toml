@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "any2llm"
+version = "0.1.0"
+description = "Select folder contents for LLM processing"
+requires-python = ">=3.10"
+dependencies = [
+    "pypdf", "python-docx", "python-pptx", "openpyxl",
+    "tiktoken", "questionary>=2.1", "rich", "pyperclip",
+]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[project.scripts]
+any2llm = "any2llm.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

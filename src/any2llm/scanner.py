@@ -4,6 +4,7 @@ import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from .packer import is_batch_name
 from .parsers import ParsedFile, SkippedFile, parse_file
 
 IGNORED_DIRS = {"node_modules", "__pycache__", "_llm_pack"}
@@ -21,9 +22,11 @@ class ScanResult:
         return list(self.parsed)
 
 
-def scan_folder(root: Path, recursive: bool = False) -> ScanResult:
+def scan_folder(root: Path, recursive: bool = False, *, output_dir: Path | None = None) -> ScanResult:
     """Scan regular files. Raise OSError if the root cannot be listed."""
-    root = Path(root)
+    root = Path(os.path.realpath(root))
+    if output_dir is not None:
+        output_dir = Path(os.path.realpath(output_dir))
     result = ScanResult()
     pending = [root]
     while pending:
@@ -34,10 +37,12 @@ def scan_folder(root: Path, recursive: bool = False) -> ScanResult:
                     if entry.name.startswith("."):
                         continue
                     path = Path(entry.path)
+                    if directory == output_dir and (entry.name == "PROMPTS.md" or is_batch_name(entry.name)):
+                        continue
                     relative = path.relative_to(root)
                     try:
                         if entry.is_dir(follow_symlinks=False):
-                            if recursive and entry.name not in IGNORED_DIRS:
+                            if recursive and path != output_dir and entry.name not in IGNORED_DIRS:
                                 pending.append(path)
                             continue
                         if not entry.is_file(follow_symlinks=False):

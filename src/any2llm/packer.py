@@ -16,6 +16,10 @@ _BATCH_NAME = re.compile(r"batch_[0-9]{2,}_of_[0-9]+\.md")
 _INVALID_XML = re.compile(r"[^\x09\x0a\x0d\x20-\ud7ff\ue000-\ufffd\U00010000-\U0010ffff]")
 
 
+def is_batch_name(name: str) -> bool:
+    return _BATCH_NAME.fullmatch(name) is not None
+
+
 def _xml_text(text: str) -> str:
     # Represent characters XML 1.0 cannot encode, including surrogateescaped paths.
     return _INVALID_XML.sub(lambda match: ascii(match[0])[1:-1], text)
@@ -125,14 +129,13 @@ def _documents(files: list[_Part], limit: int | None) -> list[str]:
         reserved_counts |= counts
 
 
-def write_batches(
+def build_batches(
     selected: Mapping[Path, ParsedFile],
-    output_dir: Path,
     *,
     preset: str = "Balanced",
     max_tokens: int | None = None,
-) -> list[Path]:
-    """Write batches in selection order and return their paths in upload order."""
+) -> dict[str, str]:
+    """Render named batches in upload order."""
     limit = PRESETS[preset] if max_tokens is None else max_tokens
     if limit is not None and limit < 1:
         raise ValueError("Token limit must be positive.")
@@ -141,17 +144,35 @@ def write_batches(
         for i, (path, parsed) in enumerate(selected.items(), 1)
     ]
     docs = _documents(files, limit)
-    if not docs:
+    return {f"batch_{i:02d}_of_{len(docs)}.md": doc for i, doc in enumerate(docs, 1)}
+
+
+def write_pack(output_dir: Path, documents: Mapping[str, str]) -> list[Path]:
+    """Stage all documents before replacing the previous pack."""
+    if not documents:
         return []
 
     output_dir.mkdir(parents=True, exist_ok=True)
-    paths = [output_dir / f"batch_{i:02d}_of_{len(docs)}.md" for i in range(1, len(docs) + 1)]
+    paths = [output_dir / name for name in documents]
     with TemporaryDirectory(dir=output_dir) as staging:
-        for path, doc in zip(paths, docs):
-            (Path(staging) / path.name).write_text(doc, encoding="utf-8", newline="\n")
+        for path in paths:
+            if path.is_dir():
+                raise IsADirectoryError(f"Output path is a directory: {path}")
+            (Path(staging) / path.name).write_text(documents[path.name], encoding="utf-8", newline="\n")
         for path in paths:
             (Path(staging) / path.name).replace(path)
     for stale in set(output_dir.iterdir()).difference(paths):
-        if _BATCH_NAME.fullmatch(stale.name) and stale.is_file():
+        if is_batch_name(stale.name) and stale.is_file():
             stale.unlink()
     return paths
+
+
+def write_batches(
+    selected: Mapping[Path, ParsedFile],
+    output_dir: Path,
+    *,
+    preset: str = "Balanced",
+    max_tokens: int | None = None,
+) -> list[Path]:
+    """Write batches in selection order and return their paths in upload order."""
+    return write_pack(output_dir, build_batches(selected, preset=preset, max_tokens=max_tokens))

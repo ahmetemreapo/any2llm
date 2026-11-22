@@ -7,8 +7,9 @@ from pathlib import Path
 import questionary
 
 from .messages import MESSAGES
-from .packer import PRESETS, write_batches
+from .packer import PRESETS, build_batches, write_pack
 from .parsers import ParsedFile
+from .prompts import clipboard_walkthrough, generate_prompts
 from .scanner import scan_folder
 from .tokenizer import count_tokens, get_encoding
 
@@ -18,17 +19,25 @@ def display_path(path: Path | str) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(add_help=False, allow_abbrev=False, exit_on_error=False)
-    parser.add_argument("folder", nargs="?", default=".", type=Path)
-    parser.add_argument("-r", "--recursive", action="store_true")
-    parser.add_argument("--max-tokens", type=int)
-    parser.add_argument("-y", "--yes", action="store_true")
+    parser = argparse.ArgumentParser(
+        prog="any2llm", add_help=False, allow_abbrev=False, exit_on_error=False,
+        description="Pack files into Markdown batches with one prompt per turn.",
+    )
+    parser.add_argument("folder", nargs="?", default=".", type=Path, help="Folder to scan (default: .)")
+    parser.add_argument("-r", "--recursive", action="store_true", help=MESSAGES["recursive"])
+    parser.add_argument("--max-tokens", type=int, metavar="INT", help="Override the token limit per batch")
+    parser.add_argument("--lang", choices=("en", "tr"), default="en", help="Prompt language (default: en)")
+    parser.add_argument(
+        "-o", "--output", type=Path, default=Path("_llm_pack"), metavar="DIR",
+        help="Output directory, relative to the scanned folder unless absolute (default: _llm_pack)",
+    )
+    parser.add_argument("-y", "--yes", action="store_true", help="Pack all files without interaction")
     # Accept the previous UI language option for command-line compatibility.
     parser.add_argument(
         "--ui-lang", choices=("en", "tr", "zh", "hi", "es", "ar", "fr", "bn", "pt", "id", "ur"),
         help=argparse.SUPPRESS,
     )
-    parser.add_argument("-h", "--help", action="store_true")
+    parser.add_argument("-h", "--help", action="store_true", help="Show this help message and exit")
     msg = MESSAGES
     try:
         args, unknown = parser.parse_known_args(argv)
@@ -38,13 +47,11 @@ def main(argv: list[str] | None = None) -> int:
         print(msg["arguments"], "any2llm --help", file=sys.stderr)
         return 2
     if args.help:
-        print(f'any2llm [{msg["folder"]}] [-r] [-y] [--max-tokens INT]')
-        print(f'  -r, --recursive   {msg["recursive"]}')
-        print("  -y, --yes         Pack all files using the Balanced preset")
-        print("  --max-tokens INT  Override the token limit per batch")
+        parser.print_help()
         return 0
+    output_dir = args.folder / args.output
     try:
-        result = scan_folder(args.folder, args.recursive)
+        result = scan_folder(args.folder, args.recursive, output_dir=output_dir)
     except OSError:
         print(f'{msg["unreadable"]}: {display_path(args.folder)}', file=sys.stderr)
         return 1
@@ -58,6 +65,7 @@ def main(argv: list[str] | None = None) -> int:
 
     selected = result.readable
     preset = "Balanced"
+    task = ""
     try:
         if not args.yes:
             selected = _select_files(result.parsed)
@@ -70,20 +78,36 @@ def main(argv: list[str] | None = None) -> int:
                     ],
                     default="Balanced",
                 ).unsafe_ask()
+            if selected:
+                task = questionary.text(
+                    "Optional task (press Enter for a detailed analysis)"
+                ).unsafe_ask()
     except (KeyboardInterrupt, EOFError):
         print(msg["cancelled"], file=sys.stderr)
         return 130
     print(f'{msg["selected"]}: {len(selected)}')
+    if not selected:
+        return 0
     try:
-        paths = write_batches(
-            {path: result.parsed[path] for path in selected}, args.folder / "_llm_pack",
+        documents = build_batches(
+            {path: result.parsed[path] for path in selected},
             preset=preset, max_tokens=args.max_tokens,
         )
+        batch_names = list(documents)
+        prompts = generate_prompts(batch_names, args.lang, task)
+        documents["PROMPTS.md"] = "\n\n".join(prompts) + "\n"
+        paths = write_pack(output_dir, documents)
     except (OSError, ValueError) as exc:
-        print(f"Cannot write batches: {display_path(str(exc))}", file=sys.stderr)
+        print(f"Cannot write pack: {display_path(str(exc))}", file=sys.stderr)
         return 1
     for path in paths:
         print(f"Written: {display_path(path)}")
+    if not args.yes:
+        try:
+            clipboard_walkthrough(batch_names, prompts)
+        except (KeyboardInterrupt, EOFError):
+            print("Walkthrough stopped. All turns are saved in PROMPTS.md.", file=sys.stderr)
+            return 130
     return 0
 
 

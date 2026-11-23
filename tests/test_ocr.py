@@ -6,6 +6,11 @@ import pytest
 from any2llm import ocr
 
 
+@pytest.fixture(autouse=True)
+def resolved_tools(monkeypatch, tmp_path):
+    monkeypatch.setattr(ocr, "resolve_tool", lambda name: str(tmp_path / name))
+
+
 def test_renders_only_requested_page_and_passes_image_in_memory(tmp_path, monkeypatch):
     pdf = tmp_path / "my notes.pdf"
     run = Mock(side_effect=[
@@ -16,9 +21,9 @@ def test_renders_only_requested_page_and_passes_image_in_memory(tmp_path, monkey
 
     assert ocr.read_page(pdf, 17, "tur+eng") == "Ders notları\n\f"
     render, recognize = run.call_args_list
-    assert render.args[0][:6] == ["pdftoppm", "-f", "17", "-l", "17", "-singlefile"]
+    assert render.args[0][:6] == [str(tmp_path / "pdftoppm"), "-f", "17", "-l", "17", "-singlefile"]
     assert render.args[0][-1] == str(pdf)
-    assert recognize.args[0] == ["tesseract", "stdin", "stdout", "-l", "tur+eng"]
+    assert recognize.args[0] == [str(tmp_path / "tesseract"), "stdin", "stdout", "-l", "tur+eng"]
     assert recognize.kwargs["input"] == b"png data"
 
 
@@ -32,13 +37,14 @@ def test_failed_recognition_returns_no_text(tmp_path, monkeypatch, failure):
     assert ocr.read_page(tmp_path / "scan.pdf", 1, "eng") == ""
 
 
-def test_setup_reports_missing_tools_and_languages(monkeypatch):
+def test_setup_reports_missing_tools_and_languages(monkeypatch, tmp_path):
     run = Mock(return_value=CompletedProcess("tesseract", 0, stdout=b"List of available languages (2):\neng\ntur\n"))
     monkeypatch.setattr(ocr.subprocess, "run", run)
-    monkeypatch.setattr(ocr, "which", lambda _: None)
+    monkeypatch.setattr(ocr, "resolve_tool", lambda _: None)
     assert ocr.setup_error("eng") == "ocr_tools_missing"
     run.assert_not_called()
 
-    monkeypatch.setattr(ocr, "which", lambda name: name)
+    monkeypatch.setattr(ocr, "resolve_tool", lambda name: str(tmp_path / name))
     assert ocr.setup_error("eng+tur") is None
     assert ocr.setup_error("eng+fra") == "ocr_languages_missing"
+    assert run.call_args.args[0] == [str(tmp_path / "tesseract"), "--list-langs"]

@@ -8,7 +8,7 @@ def copy_prompt(prompt: str) -> bool:
     # Some native backends print errors directly to stderr or wait for a display.
     try:
         result = subprocess.run(
-            [sys.executable, "-m", "any2llm.clipboard"], input=prompt.encode("utf-8"),
+            [sys.executable, "-I", "-m", "any2llm.clipboard"], input=prompt.encode("utf-8"),
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5,
         )
     except (OSError, subprocess.TimeoutExpired):

@@ -89,3 +89,39 @@ def test_windows_hidden_files_and_junctions(tmp_path):
     result = scan_folder(folder, recursive=True)
     assert result.readable == []
     assert result.skipped == {Path(link.name): "special"}
+
+
+def test_installed_clipboard_helper_ignores_working_directory_and_pythonpath(tmp_path):
+    from sysconfig import get_path
+
+    command = shutil.which("any2llm", path=get_path("scripts"))
+    assert command, "Install the project before running the tests."
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    (docs / "notes.txt").write_text("Local notes", encoding="utf-8")
+    extra = tmp_path / "extra"
+    extra.mkdir()
+    for directory in (docs, extra):
+        (directory / "pyperclip.py").write_text(
+            "from pathlib import Path\n"
+            "def copy(text):\n"
+            "    Path(__file__).with_suffix('.used').touch()\n"
+            "def paste():\n"
+            "    return ''\n",
+            encoding="utf-8",
+        )
+    env = {
+        **os.environ, "HOME": str(tmp_path), "USERPROFILE": str(tmp_path),
+        "PYTHONPATH": str(extra),
+    }
+    for key in ("DISPLAY", "WAYLAND_DISPLAY"):
+        env.pop(key, None)
+    result = subprocess.run(
+        [command, str(docs), "-y", "--no-open", "--lang", "en"],
+        cwd=docs, env=env, stdin=subprocess.DEVNULL, capture_output=True, timeout=30, check=True,
+    )
+    assert not list(tmp_path.rglob("*.used"))
+    assert (docs / "_llm_pack" / "PROMPT.txt").read_text(encoding="utf-8")
+    output = result.stdout.decode("utf-8")
+    if sys.platform.startswith("linux"):
+        assert "Open PROMPT.txt" in output

@@ -77,6 +77,8 @@ def test_pdf_repairs_only_damaged_pages(tmp_path, monkeypatch, fallback, expecte
         for text in ("Introduction", "", "Educa\x00onal Research", "Results")
     ])
     monkeypatch.setattr(parsers, "PdfReader", Mock(return_value=reader))
+    executable = str(tmp_path / "tools" / "pdftotext")
+    monkeypatch.setattr(parsers, "resolve_tool", lambda _: executable)
     run = Mock(side_effect=fallback) if isinstance(fallback, Exception) else Mock(
         return_value=CompletedProcess("pdftotext", 0, stdout=fallback),
     )
@@ -89,7 +91,7 @@ def test_pdf_repairs_only_damaged_pages(tmp_path, monkeypatch, fallback, expecte
     assert parsed.text == f"Introduction\n\n{expected.text}\n\nResults"
     run.assert_called_once()
     assert run.call_args.args[0] == [
-        "pdftotext", "-f", "3", "-l", "3", "-layout", "-nopgbrk", "-enc", "UTF-8", str(path), "-",
+        executable, "-f", "3", "-l", "3", "-layout", "-nopgbrk", "-enc", "UTF-8", str(path), "-",
     ]
 
 

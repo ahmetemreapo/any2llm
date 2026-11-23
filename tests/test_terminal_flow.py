@@ -29,19 +29,7 @@ _ANSI = re.compile(rb"\x1b\[[0-?]*[ -/]*[@-~]")
 
 
 @pytest.fixture(params=[False, True], ids=["clipboard-unavailable", "clipboard-available"])
-def clipboard_available(request, tmp_path, monkeypatch):
-    # The CLI imports pyperclip in a child process. Give it a private clipboard.
-    contents = "text" if request.param else '""'
-    (tmp_path / "pyperclip.py").write_text(
-        "def copy(text):\n"
-        "    global clipboard\n"
-        f"    clipboard = {contents}\n\n"
-        "def paste():\n"
-        "    return clipboard\n",
-        encoding="utf-8",
-    )
-    pythonpath = os.environ.get("PYTHONPATH")
-    monkeypatch.setenv("PYTHONPATH", os.pathsep.join(filter(None, [str(tmp_path), pythonpath])))
+def clipboard_available(request):
     return request.param
 
 
@@ -109,9 +97,10 @@ def test_first_run_and_daily_keyboard_flow(tmp_path, columns, language, mode, cl
     other = "Z " + "Uzun çalışma adı " * 4 + "照片.txt"
     (folder / other).write_text("Leave this out")
     (folder / "Video.mp4").write_bytes(b"video")
-    binary = Path(sys.executable).parent / "any2llm"
-    executable = [str(binary)] if binary.is_file() else [
-        sys.executable, "-c", "from any2llm.cli import main; raise SystemExit(main())",
+    executable = [
+        sys.executable, "-c",
+        f"from any2llm import cli; cli.copy_prompt = lambda _: {clipboard_available!r}; "
+        "raise SystemExit(cli.main())",
     ]
     turkish = language == "tr"
     plain = mode == "plain"

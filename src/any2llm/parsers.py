@@ -22,6 +22,7 @@ from pypdf import PdfReader
 
 from . import ocr
 from .cleaner import clean_pages, clean_text
+from .tools import resolve_tool
 
 _CONTROL = re.compile(r"[\x00-\x08\x0e-\x1f\x7f-\x9f]")
 _IMAGE_SIGNATURES = (b"\x89PNG\r\n\x1a\n", b"\xff\xd8\xff", b"GIF87a", b"GIF89a")
@@ -106,9 +107,12 @@ def _plain(stream: BinaryIO, path: Path, mime: str) -> ParsedFile | SkippedFile:
 
 
 def _pdftotext(path: Path, number: int) -> str:
+    executable = resolve_tool("pdftotext")
+    if not executable:
+        return ""
     try:
         result = subprocess.run(
-            ["pdftotext", "-f", str(number), "-l", str(number),
+            [executable, "-f", str(number), "-l", str(number),
              "-layout", "-nopgbrk", "-enc", "UTF-8", str(path.absolute()), "-"],
             stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
             check=True, timeout=10,

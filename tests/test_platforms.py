@@ -87,7 +87,7 @@ def test_windows_hidden_files_and_junctions(tmp_path):
     subprocess.run(["cmd.exe", "/d", "/c", "mklink", "/J", link.name, str(other)], cwd=folder, check=True)
     assert hidden.stat().st_file_attributes & stat.FILE_ATTRIBUTE_HIDDEN
     result = scan_folder(folder, recursive=True)
-    assert result.readable == []
+    assert result.candidates == []
     assert result.skipped == {Path(link.name): "special"}
 
 

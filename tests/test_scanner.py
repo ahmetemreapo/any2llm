@@ -7,7 +7,9 @@ from openpyxl import Workbook
 from pptx import Presentation
 from pypdf import PdfWriter
 
-from any2llm import scanner
+from any2llm import parsers
+from any2llm.parse_worker import parse_selected
+from any2llm.parsers import SkippedFile
 from any2llm.scanner import scan_folder
 
 
@@ -20,9 +22,9 @@ def test_scan_depth_and_ignores(tmp_path):
         (tmp_path / name / "nested.txt").write_text("Hello")
     (tmp_path / ".env").touch()
     (tmp_path / "empty").touch()
-    assert scan_folder(tmp_path).readable == [Path("empty")]
+    assert scan_folder(tmp_path).candidates == [Path("empty")]
     result = scan_folder(tmp_path, recursive=True)
-    assert result.readable == [Path("empty"), Path("src/nested.txt")]
+    assert result.candidates == [Path("empty"), Path("src/nested.txt")]
     assert not result.skipped
 
 
@@ -35,18 +37,18 @@ def test_sensitive_files_are_not_parsed_without_opt_in(tmp_path, monkeypatch, na
     path = tmp_path / relative
     path.parent.mkdir()
     path.write_text("example data")
-    parse = Mock(wraps=scanner.parse_file)
-    monkeypatch.setattr(scanner, "parse_file", parse)
+    opener = Mock(side_effect=AssertionError("Discovery must not open candidate content."))
+    monkeypatch.setattr(parsers, "open", opener, raising=False)
 
     result = scan_folder(tmp_path, recursive=True)
-    assert result.readable == []
+    assert result.candidates == []
     assert result.skipped == {relative: "sensitive"}
-    parse.assert_not_called()
+    opener.assert_not_called()
 
     result = scan_folder(tmp_path, recursive=True, include_sensitive=True)
-    assert result.readable == [relative]
+    assert result.candidates == [relative]
     assert not result.skipped
-    parse.assert_called_once_with(path.resolve(), ocr_lang=None)
+    opener.assert_not_called()
 
 
 def test_root_gitignore_matches_simple_git_patterns(tmp_path):
@@ -69,7 +71,7 @@ def test_root_gitignore_matches_simple_git_patterns(tmp_path):
     (tmp_path / "docs" / ".gitignore").write_text("keep.log\n")
 
     result = scan_folder(tmp_path, recursive=True)
-    assert result.readable == sorted(map(Path, kept))
+    assert result.candidates == sorted(map(Path, kept))
     assert not result.skipped
 
 
@@ -95,7 +97,7 @@ def test_unreadable_gitignore_is_reported_before_files_are_selected(tmp_path, mo
 
     monkeypatch.setattr(Path, "read_text", guarded_read)
     result = scan_folder(tmp_path)
-    assert result.readable == []
+    assert result.candidates == []
     assert result.skipped == {Path(".gitignore"): "unreadable"}
 
 
@@ -110,8 +112,10 @@ def test_content_detection(tmp_path):
     (tmp_path / "page.html").write_text("<h1>Title</h1>")
     (tmp_path / "picture").write_bytes(b"\x89PNG\r\n\x1a\n")
     result = scan_folder(tmp_path)
-    assert result.readable == [Path("notes"), Path("page.html"), Path("script")]
-    assert result.skipped == {
+    assert result.candidates == list(map(Path, ["data", "fake.txt", "notes", "page.html", "picture", "script"]))
+    parsed, skipped = _parse_candidates(tmp_path, result)
+    assert parsed == [Path("notes"), Path("page.html"), Path("script")]
+    assert skipped == {
         Path("fake.txt"): "binary", Path("data"): "binary",
         Path("art.SVG"): "image", Path("picture"): "image",
         Path("video.mp4"): "video", Path("audio.mp3"): "audio",
@@ -126,8 +130,9 @@ def test_office_documents(tmp_path, name, create):
     damaged = tmp_path / ("broken" + Path(name).suffix)
     damaged.write_bytes(b"truncated")
     result = scan_folder(tmp_path)
-    assert result.readable == [Path(name)]
-    assert result.skipped == {Path(damaged.name): "invalid"}
+    parsed, skipped = _parse_candidates(tmp_path, result)
+    assert parsed == [Path(name)]
+    assert skipped == {Path(damaged.name): "invalid"}
 
 
 def test_pdf_and_encryption(tmp_path):
@@ -138,23 +143,37 @@ def test_pdf_and_encryption(tmp_path):
     writer.write(tmp_path / "locked.pdf")
     (tmp_path / "broken.pdf").touch()
     result = scan_folder(tmp_path)
-    assert result.readable == []
-    assert result.skipped == {
+    parsed, skipped = _parse_candidates(tmp_path, result)
+    assert parsed == []
+    assert skipped == {
         Path("ok.pdf"): "no_pdf_text", Path("locked.pdf"): "encrypted", Path("broken.pdf"): "invalid",
     }
 
 
-def test_read_error_does_not_stop_scan(tmp_path, monkeypatch):
-    (tmp_path / "locked").touch()
-    (tmp_path / "ok").touch()
-    original = Path.open
+def _parse_candidates(root, result):
+    parsed = []
+    skipped = dict(result.skipped)
+    for relative in result.candidates:
+        document = parse_selected(root.resolve() / relative, ocr_lang=None)
+        if isinstance(document, SkippedFile):
+            skipped[relative] = document.reason
+        else:
+            parsed.append(relative)
+    return parsed, skipped
 
-    def guarded_open(path, *args, **kwargs):
-        if path.name == "locked":
-            raise PermissionError
-        return original(path, *args, **kwargs)
 
-    monkeypatch.setattr(Path, "open", guarded_open)
-    result = scan_folder(tmp_path)
-    assert result.readable == [Path("ok")]
-    assert result.skipped == {Path("locked"): "unreadable"}
+def test_discovery_skips_symlinks_to_files_and_directories(tmp_path):
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    source = outside / "notes.txt"
+    source.write_text("Outside the scan root")
+    try:
+        (docs / "notes.txt").symlink_to(source)
+        (docs / "nested").symlink_to(outside, target_is_directory=True)
+    except OSError:
+        pytest.skip("Creating symlinks requires filesystem support and privileges.")
+    scan = scan_folder(docs, recursive=True)
+    assert scan.candidates == []
+    assert scan.skipped == {Path("nested"): "special", Path("notes.txt"): "special"}

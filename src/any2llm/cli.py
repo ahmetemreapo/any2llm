@@ -2,7 +2,6 @@
 
 import argparse
 import io
-import logging
 import os
 import subprocess
 import sys
@@ -17,8 +16,11 @@ from .languages import LANGUAGE_NAMES, system_language
 from .messages import MESSAGES, help_text
 from .output import OutputBusy, OutputConflict, write_pack
 from .packer import PRESETS, build_batches
+from .parse_worker import parse_selected
+from .parsers import SkippedFile
 from .prompts import master_prompt
 from .scanner import scan_folder
+from .secrets import finding_types
 from .terminal import Terminal, display_count, display_page_ranges, display_path, display_size, select_files
 
 # Older --ui-lang values remain accepted for command-line compatibility.
@@ -162,13 +164,6 @@ def _pack(args: argparse.Namespace, settings: Settings, lang: str, screen: Termi
     output_dir = folder / args.output
     screen.section(f'{msg["scanning"]}…', "bold cyan", icon="⌕")
     screen.line(f'{msg["folder"]}: {display_path(folder)}', flush=True)
-    logging.getLogger("pypdf").setLevel(logging.CRITICAL)
-    ocr_lang = args.ocr_lang
-    if args.ocr and ocr_lang is None:
-        ocr_lang = "eng"
-    if ocr_lang is not None and (error := ocr.setup_error(ocr_lang)):
-        print(msg[error].format(lang=display_path(ocr_lang)), file=sys.stderr)
-        ocr_lang = None
     examined = 0
 
     def on_file() -> None:
@@ -178,10 +173,11 @@ def _pack(args: argparse.Namespace, settings: Settings, lang: str, screen: Termi
             screen.line(f'{msg["progress"]}: {display_count(examined, msg)}', flush=True)
 
     try:
+        root = Path(os.path.realpath(folder))
         result = scan_folder(
-            folder, args.recursive, output_dir=output_dir,
+            root, args.recursive, output_dir=output_dir,
             on_file=on_file if screen.is_terminal else None,
-            include_sensitive=args.include_sensitive, exclude=args.exclude, ocr_lang=ocr_lang,
+            include_sensitive=args.include_sensitive, exclude=args.exclude,
         )
     except OSError as exc:
         key = {
@@ -191,18 +187,36 @@ def _pack(args: argparse.Namespace, settings: Settings, lang: str, screen: Termi
         return 1
     if result.skipped:
         _report_skipped(result.skipped, msg, screen, details=args.details)
-    if not result.parsed:
+    if not result.candidates:
         screen.section(msg["empty"])
         if not args.recursive and result.has_subfolders:
             print(msg["nested"])
         return 0
 
-    selected = result.readable if args.yes else select_files(result.readable, msg, plain=plain)
+    selected = result.candidates if args.yes else select_files(result.candidates, msg, plain=plain)
     if not selected:
         screen.section(msg["none_selected"])
         return 0
-    documents_to_pack = {path: result.parsed[path] for path in selected}
+    ocr_lang = args.ocr_lang or ("eng" if args.ocr else None)
+    if ocr_lang is not None and (error := ocr.setup_error(ocr_lang)):
+        print(msg[error].format(lang=display_path(ocr_lang)), file=sys.stderr)
+        ocr_lang = None
     screen.section(msg["packing"], "bold bright_blue", icon="▤", flush=True)
+    documents_to_pack = {}
+    parse_skips = {}
+    for path in selected:
+        parsed = parse_selected(root / path, ocr_lang=ocr_lang)
+        if isinstance(parsed, SkippedFile):
+            parse_skips[path] = parsed.reason
+        elif not parsed.text.strip():
+            parse_skips[path] = "empty_file"
+        else:
+            documents_to_pack[path] = parsed
+    if parse_skips:
+        _report_skipped(parse_skips, msg, screen, details=args.details)
+    if not documents_to_pack:
+        screen.section(msg["empty"])
+        return 0
     try:
         documents = build_batches(
             documents_to_pack, preset=settings.preset, max_tokens=args.max_tokens,
@@ -224,6 +238,12 @@ def _pack(args: argparse.Namespace, settings: Settings, lang: str, screen: Termi
         print(f'{msg[key]}: {display_path(problem_path)}', file=sys.stderr)
         print(msg["busy_fix" if key == "busy" else "write_fix"], file=sys.stderr)
         return 1
+    findings = [(path.name, kind) for path, doc in documents_to_pack.items() for kind in finding_types(doc.text)]
+    if findings:
+        screen.section(msg["sensitive_content"], "bold yellow", icon="▲")
+        for name, kind in findings:
+            screen.line(f"  {display_path(name)} — {msg[kind]}")
+        screen.line(msg["sensitive_review"], "bold yellow")
     for path, document in documents_to_pack.items():
         partial = sum(page.partial for page in document.pages)
         if partial:
@@ -239,7 +259,7 @@ def _pack(args: argparse.Namespace, settings: Settings, lang: str, screen: Termi
             print(f"  {display_path(path)} — {note}")
     copied = copy_prompt(prompt)
     limited = args.max_tokens is not None or PRESETS[settings.preset] is not None
-    _handoff(msg, output_dir, len(selected), documents, copied, screen, limited=limited)
+    _handoff(msg, output_dir, len(documents_to_pack), documents, copied, screen, limited=limited)
     if settings.auto_open and not args.no_open and _interactive():
         _open_folder(output_dir)
     return 0

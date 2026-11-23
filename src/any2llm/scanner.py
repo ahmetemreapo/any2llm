@@ -1,4 +1,4 @@
-"""Discover and parse selectable files in a folder."""
+"""Discover selectable paths without opening candidate files."""
 
 import os
 import stat
@@ -9,7 +9,7 @@ from pathlib import Path
 
 from .ignore import PathPattern, read_gitignore
 from .output import owned_outputs
-from .parsers import ParsedFile, SkippedFile, parse_file
+from .parsers import metadata_skip
 
 IGNORED_DIRS = {
     ".venv", "__MACOSX", "__pycache__", "_llm_pack", "build", "dist", "env",
@@ -24,18 +24,13 @@ _SENSITIVE_PATTERNS = (
 class ScanResult:
     """All paths are relative to the scanned directory."""
 
-    parsed: dict[Path, ParsedFile] = field(default_factory=dict)
+    candidates: list[Path] = field(default_factory=list)
     skipped: dict[Path, str] = field(default_factory=dict)
 
     has_subfolders: bool = False
 
-    @property
-    def readable(self) -> list[Path]:
-        return list(self.parsed)
-
-
 def _windows_entry(entry: os.DirEntry) -> str | None:
-    """Handle native hidden files and junctions on Python 3.10 and newer."""
+    """Handle native hidden files and junctions."""
     info = entry.stat(follow_symlinks=False)
     if info.st_file_attributes & stat.FILE_ATTRIBUTE_HIDDEN:
         return "hidden"
@@ -47,7 +42,7 @@ def _windows_entry(entry: os.DirEntry) -> str | None:
 def scan_folder(
     root: Path, recursive: bool = False, *,
     output_dir: Path | None = None, on_file: Callable[[], None] | None = None,
-    include_sensitive: bool = False, exclude: Iterable[str] = (), ocr_lang: str | None = None,
+    include_sensitive: bool = False, exclude: Iterable[str] = (),
 ) -> ScanResult:
     """Scan regular files. Raise OSError if the root cannot be listed."""
     root = Path(os.path.realpath(root))
@@ -110,19 +105,18 @@ def scan_folder(
                         ):
                             result.skipped[relative] = "sensitive"
                             continue
-                        parsed = parse_file(path, ocr_lang=ocr_lang)
                         if on_file is not None:
                             on_file()
-                        if isinstance(parsed, SkippedFile):
-                            result.skipped[relative] = parsed.reason
+                        if reason := metadata_skip(path):
+                            result.skipped[relative] = reason
                         else:
-                            result.parsed[relative] = parsed
+                            result.candidates.append(relative)
                     except OSError:
                         result.skipped[relative] = "unreadable"
         except OSError:
             if directory == root:
                 raise
             result.skipped[directory.relative_to(root)] = "unreadable"
-    result.parsed = dict(sorted(result.parsed.items()))
+    result.candidates.sort()
     result.skipped = dict(sorted(result.skipped.items()))
     return result

@@ -10,7 +10,7 @@ With Python 3.11 or newer and pipx installed, run this from the root of your loc
 pipx install .
 ```
 
-If your terminal can't find `any2llm`, run `pipx ensurepath` and open a new terminal. For Python 3.10 or a manual install, use the [venv instructions](#install-from-this-source-folder).
+If your terminal can't find `any2llm`, run `pipx ensurepath` and open a new terminal. For a manual install, use the [venv instructions](#install-from-this-source-folder).
 
 ## Try it with three sample files
 
@@ -69,7 +69,7 @@ Code and HTML stay readable inside file and page blocks. For example, `a < b && 
 
 ## Install from this source folder
 
-Use Python 3.10 or newer with pip and venv. Open a terminal in the source folder containing `pyproject.toml`. These commands install into a private environment without administrator access.
+Use Python 3.11 or newer with pip and venv. Open a terminal in the source folder containing `pyproject.toml`. These commands install into a private environment without administrator access.
 
 **Windows PowerShell**
 
@@ -99,7 +99,7 @@ On Linux, some distributions package venv and pip separately. If creating the en
 
 1. Go to the folder containing your documents. On Windows, right-click inside the folder in File Explorer and choose **Open in Terminal** if available. On macOS or Linux you can open Terminal and enter `cd "/path/to/My Documents"`, using your own folder path.
 2. Run `any2llm`. On first use, choose a language, choose how to group the documents, and decide whether to open the prepared files automatically. The language menu uses your system language when supported and English otherwise. The remaining questions use your choice. Press Enter to keep the highlighted option.
-3. All readable files that pass the scan filters start selected. Press Enter to keep them all, or use the arrow keys and Space to remove individual files. With `any2llm --plain`, use numbered choices. Run `any2llm -r` to look in subfolders too.
+3. All candidates that pass the scan filters start selected. Press Enter to keep them all, or use the arrow keys and Space to remove individual files. With `any2llm --plain`, use numbered choices. Run `any2llm -r` to look in subfolders too. After selection, any2llm reads the selected files and reports files it cannot use.
 4. The terminal shows the number and combined size of the `batch_*.md` attachments and how tokens were counted. Attach all the named files to one message if your chat allows. If you hit its attachment limit, start with the first file. Paste the instructions into the message and send. The terminal confirms whether the instructions were copied to your clipboard. You can also copy them from `PROMPT.txt` in the output folder.
 5. After each reply, send the continuation word shown in the terminal to move to the next numbered file. Attach that file to the continuation message if you haven't uploaded it yet.
 
@@ -119,11 +119,13 @@ any2llm extracts text from PDFs, paragraphs and tables from Word documents, text
 
 The scan skips common environment and build directories and flags potentially sensitive filenames such as `credentials.json`, `id_rsa`, and `server.pem`. Use `--include-sensitive` to allow those filenames through the sensitive-file filter. The scan also applies simple rules from the root `.gitignore`. Add your own exclusions with `--exclude '*.log' --exclude 'private/'`. Quote globs to prevent your shell from expanding them.
 
-For reported skips, the terminal explains each reason and suggests what to try. Run `any2llm --details` for the full list of reported files, or `any2llm setup` to change your preferences. Run `any2llm --help` for advanced options. Without an interactive terminal, `any2llm -y` selects all readable files that pass the scan filters and uses saved settings or temporary defaults.
+For reported skips, the terminal explains each reason and suggests what to try. Run `any2llm --details` for the full list of reported files, or `any2llm setup` to change your preferences. Run `any2llm --help` for advanced options. Without an interactive terminal, `any2llm -y` selects all candidates that pass the scan filters and uses saved settings or temporary defaults.
+
+Extraction accepts up to 32 MiB per source file, 500 pages per PDF, and 128 MiB of total uncompressed entries per Word, PowerPoint, or Excel archive. The CLI allows up to 120 seconds per selected file, including OCR. It skips files that exceed a limit.
 
 ### OCR for scanned PDFs
 
-Install Poppler (`pdftoppm`) and Tesseract with the language data for your documents. Make both commands available on `PATH`. Use `tesseract --list-langs` to see which languages are installed. [Tesseract installation guide](https://tesseract-ocr.github.io/tessdoc/Installation.html)
+Install Poppler (`pdftoppm`) and Tesseract with the language data for your documents. Put their installation directories on `PATH` as absolute paths. any2llm skips the current working directory when looking for these tools and for `pdftotext`, which can repair damaged PDF text with or without OCR. Use `tesseract --list-langs` to see which languages are installed. [Tesseract installation guide](https://tesseract-ocr.github.io/tessdoc/Installation.html)
 
 ```sh
 any2llm ./lectures --ocr

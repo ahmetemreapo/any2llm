@@ -21,8 +21,15 @@ def test_checkbox_uses_file_names_and_reports_skips(tmp_path, monkeypatch, capsy
     (tmp_path / "notes.txt").write_text("Hello!           \n\n")
     (tmp_path / "broken.xlsx").write_bytes(b"truncated")
     monkeypatch.setattr(tokenizer, "get_encoding", lambda: None)
+    parse = Mock(wraps=cli.parse_selected)
+    monkeypatch.setattr(cli, "parse_selected", parse)
     checkbox = Mock()
-    checkbox.return_value.unsafe_ask.return_value = [Path("notes.txt")]
+
+    def choose():
+        parse.assert_not_called()
+        return [Path("broken.xlsx"), Path("notes.txt")]
+
+    checkbox.return_value.unsafe_ask.side_effect = choose
     monkeypatch.setattr(terminal.questionary, "checkbox", checkbox)
     for name in ("select", "text"):
         monkeypatch.setattr(terminal.questionary, name, Mock(side_effect=AssertionError))
@@ -33,9 +40,11 @@ def test_checkbox_uses_file_names_and_reports_skips(tmp_path, monkeypatch, capsy
     message, choices = checkbox.call_args.args
     assert message == "Which files do you want to prepare for your chat?"
     assert [(c.title, c.value, c.checked) for c in choices] == [
-        ("1. notes.txt", Path("notes.txt"), True),
-        ("2. unused.txt", Path("unused.txt"), True),
+        ("1. broken.xlsx", Path("broken.xlsx"), True),
+        ("2. notes.txt", Path("notes.txt"), True),
+        ("3. unused.txt", Path("unused.txt"), True),
     ]
+    assert [entry.args[0].name for entry in parse.call_args_list] == ["broken.xlsx", "notes.txt"]
     output = capsys.readouterr().out
     assert "broken.xlsx — damaged document" in output
     assert "What to do about files left out" in output
@@ -280,12 +289,11 @@ def test_skip_details_progress_and_partial_pdf(tmp_path, monkeypatch, capsys):
     (tmp_path / "photo.png").touch()
     (tmp_path / "z-workbook.xls").touch()
     (tmp_path / "report.pdf").touch()
-    from any2llm import scanner
 
-    parse_file = scanner.parse_file
-    monkeypatch.setattr(scanner, "parse_file", lambda path, **kwargs: (
+    parse_selected = cli.parse_selected
+    monkeypatch.setattr(cli, "parse_selected", lambda path, **kwargs: (
         ParsedFile("PDF", "Text", (PdfPage(17, "Text", partial=True),))
-        if path.suffix == ".pdf" else parse_file(path, **kwargs)
+        if path.suffix == ".pdf" else parse_selected(path, **kwargs)
     ))
     monkeypatch.setattr(cli.sys.stdout, "isatty", lambda: True)
     assert cli.main([str(tmp_path), "-y", "--no-open"]) == 0
@@ -314,6 +322,7 @@ def test_image_only_pdf_page_is_reported_and_kept_in_pack(tmp_path, monkeypatch,
     monkeypatch.setattr(cli, "select_files", lambda *_args, **_kwargs: [Path(sample.name)])
     monkeypatch.setattr(tokenizer, "get_encoding", lambda: None)
     monkeypatch.setattr(parsers, "_pdftotext", lambda *_: "")
+    monkeypatch.setattr(cli, "parse_selected", parsers.parse_file)
     setup = Mock(return_value=error)
     recognize = Mock(return_value="Confirm freight costs separately.\n")
     monkeypatch.setattr(ocr, "setup_error", setup)
@@ -337,7 +346,7 @@ def test_image_only_pdf_page_is_reported_and_kept_in_pack(tmp_path, monkeypatch,
     assert "Main shipment" in elements[2].text
     assert all("extraction" not in elements[index].attrib for index in (0, 2))
     if ocr_lang and not error:
-        assert recognize.call_count == 2
+        assert recognize.call_count == 1
         assert all(call.args[1:] == (2, ocr_lang) for call in recognize.call_args_list)
         assert "supplier-offer.pdf — PDF pages read with OCR: 2" in captured.out
         assert elements[1].get("extraction") == "ocr"
@@ -352,12 +361,39 @@ def test_image_only_pdf_page_is_reported_and_kept_in_pack(tmp_path, monkeypatch,
 
 
 def test_pdf_warning_groups_page_ranges(tmp_path, monkeypatch, capsys):
-    from any2llm import scanner
     from any2llm.parsers import ParsedFile, PdfPage
 
     (tmp_path / "report.pdf").touch()
     pages = (PdfPage(1, "Text"), *(PdfPage(n, "", no_text=True) for n in (2, 3, 4, 6, 8, 9)))
-    monkeypatch.setattr(scanner, "parse_file", lambda _, **_kwargs: ParsedFile("PDF", "Text", pages))
+    monkeypatch.setattr(cli, "parse_selected", lambda _, **_kwargs: ParsedFile("PDF", "Text", pages))
     assert cli.main([str(tmp_path), "-y", "--lang", "tr", "--no-open"]) == 0
     logs = capsys.readouterr().out
     assert "report.pdf — Şu PDF sayfalarından metin alınamadı: 2–4, 6, 8–9" in logs
+
+
+def test_only_unusable_selected_files_produce_no_pack(tmp_path, monkeypatch, capsys):
+    (tmp_path / "bad.docx").write_bytes(b"truncated")
+    (tmp_path / "blank.txt").write_text("   \n")
+    (tmp_path / "ignored.txt").write_text("Valid but unselected")
+    selected = [Path("bad.docx"), Path("blank.txt")]
+    monkeypatch.setattr(cli, "select_files", lambda *_args, **_kwargs: selected)
+    assert cli.main([str(tmp_path), "--no-open", "--lang", "en"]) == 0
+    output = capsys.readouterr().out
+    assert "bad.docx — damaged document" in output
+    assert "blank.txt — no usable content" in output
+    assert "No new files were prepared" in output
+    assert not (tmp_path / "_llm_pack").exists()
+
+
+def test_sensitive_content_warning_lists_only_name_and_types(tmp_path, capsys, caplog):
+    fake_api_key = "sk-proj-" + "synthetic" * 4
+    fake_private_key = "-----BEGIN OPENSSH PRIVATE KEY-----\nsynthetic sample\n-----END OPENSSH PRIVATE KEY-----"
+    (tmp_path / "notes.txt").write_text(f"{fake_api_key}\n{fake_private_key}\n", encoding="utf-8")
+    assert cli.main([str(tmp_path), "-y", "--no-open", "--lang", "en"]) == 0
+    captured = capsys.readouterr()
+    assert "notes.txt — private key" in captured.out and "notes.txt — API key or access token" in captured.out
+    assert "Review the prepared files before uploading them." in captured.out
+    terminal_text = captured.out + captured.err + caplog.text
+    assert fake_api_key not in terminal_text and "BEGIN OPENSSH" not in terminal_text
+    batch = (tmp_path / "_llm_pack/batch_01_of_1.md").read_text(encoding="utf-8")
+    assert fake_api_key in batch and fake_private_key in batch

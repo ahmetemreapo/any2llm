@@ -17,12 +17,14 @@ The wizard saves preferences in `~/.config/any2llm/config.json` and continues to
 ## Daily use
 
 1. Scan the folder, optionally including subdirectories. Ignore hidden entries, common dependency, environment, cache and build directories, and the output directory. Apply root `.gitignore` rules and any `--exclude` globs. Skip potentially sensitive files before extracting text from PDF, DOCX, PPTX, XLSX, code, and plain text. Report sensitive files and extraction failures with reasons and suggested next steps in the active language.
-2. A single checkbox lists readable files. All start checked. Use Space to toggle and Enter to confirm. Use `--plain` for numbered choices and full filenames.
+2. A single checkbox lists files that pass the discovery filters. All start checked. Use Space to toggle and Enter to confirm. Use `--plain` for numbered choices and full filenames. Read and parse only selected candidates. Skip unusable files and prepare no new pack if none remain.
 3. Write `batch_01_of_N.md` and subsequent numbered batches to `_llm_pack/`. Each starts with an XML `<manifest>` followed by matching `<file>` blocks. Oversized files have numbered parts with a shared file ID. The output folder records which files belong to the pack. Reruns replace or remove only recorded files whose contents still match. For destination conflicts, choose another folder with `-o`.
 4. Save one master prompt to `PROMPT.txt` and automatically try to copy it to the clipboard. Confirm whether the copy succeeded. If the clipboard is unavailable, show how to copy the saved instructions manually. The output folder opens in the system file manager when enabled.
 5. Report the attachment count, total size of the UTF-8 batch files, and the token counting method. For capped batches, count tokens with `cl100k_base` or estimate one token per four characters when unavailable. Attach the batch files together if they fit the chat's attachment limit. Otherwise, attach the first file and send the remaining files in order with the continuation messages in the same chat. Paste the prompt once. By default, the prompt requests a thorough analysis and synthesis. With `--task`, it asks for an answer in the task's scope and format, with citations and any relevant gaps in the evidence. For multiple batches, the LLM processes the files in order and waits for the localized continuation word between batches. It requests missing attachments by name when their batch is due. With a custom task, intermediate replies report relevant findings and the final reply combines them into the requested output. The terminal command exits as soon as packing and handoff are complete.
 
 Each packed PDF retains its physical page numbers in `<page number="…">` elements, including on pages that span multiple batches. Pages with no extractable text have the attribute `extraction="no-extractable-text"`. The terminal reports these pages for packed files and groups consecutive numbers into ranges. Extraction is assessed before removing repeated headers and footers. If a page's text extraction is damaged, the optional `pdftotext` utility can retry that page. If the retry fails, `status="partial"` marks the affected page and any readable text is kept. PDFs without any usable text are skipped and reported at file level.
+
+Limit source files to 32 MiB, PDFs to 500 pages, and Office archives to 128 MiB of uncompressed entries. Run each selected extraction in a worker with a 120-second deadline. Check extracted text locally for common credential formats. Show only the filename and finding type and remind the user to review the batches before uploading. Keep the extracted content in the batch.
 
 When OCR is enabled, the extractor also tries `pdftotext` on otherwise empty pages before running local OCR. Only pages with no usable text are rendered for OCR. Successful recognition marks the page and each of its batch fragments with `extraction="ocr"`. The terminal reports which pages were read with OCR. If OCR produces no usable text, the page retains its missing-text marker. When required tools or language data are missing, the terminal reports the prerequisite and continues with regular extraction. The master prompt asks the model to cite physical PDF page numbers and flag uncertain OCR readings when the pack contains OCR text.
 
@@ -45,7 +47,7 @@ Use `/` as the separator in `--exclude` globs and root `.gitignore` rules. A bar
 | `--ocr-lang LANG` | Enable OCR with one or more installed Tesseract languages, joined with `+` for a multilingual scan |
 | `--no-open` | Skip opening the file manager |
 | `-o DIR`, `--output DIR` | Output directory, relative to the scanned folder unless absolute |
-| `-y`, `--yes` | Automatically select all readable files that pass the scan filters |
+| `-y`, `--yes` | Automatically select all candidates that pass the scan filters |
 | `--include-sensitive` | Bypass the sensitive filename filter for this run |
 | `--exclude GLOB` | Skip matching files and directories. Repeat to add patterns. |
 | `--plain` | Use numbered menus |
@@ -56,6 +58,6 @@ Packing overrides apply only to the current run. The older `--ui-lang` spelling 
 
 ## Dependencies
 
-Use pypdf, python-docx, python-pptx, and openpyxl for document extraction, tiktoken with an offline fallback for token counts, questionary for interactive selection, and pyperclip for clipboard access. Rich is available for terminal formatting. Use pytest for tests.
+Use Python 3.11 or newer. Use pypdf, python-docx, python-pptx, and openpyxl for document extraction. Require Pillow 13.0.0 or newer for python-pptx and defusedxml for Excel XML parsing. Use tiktoken with an offline fallback for token counts, questionary for interactive selection, pyperclip for clipboard access, Rich for terminal formatting, and pytest for tests.
 
-Optional PDF OCR uses the system commands `pdftoppm` (Poppler) and `tesseract` with local language data. Each render and recognition process has a timeout. The page image is passed to Tesseract in memory.
+Optional PDF OCR uses the system commands `pdftoppm` (Poppler) and `tesseract` with local language data. Resolve native PDF tools from absolute PATH entries outside the current working directory. Each render and recognition process has a timeout. The page image is passed to Tesseract in memory.

@@ -5,6 +5,7 @@ from unittest.mock import Mock, call
 from xml.etree import ElementTree as ET
 from zipfile import ZipFile
 
+import pypdf
 import pytest
 from docx import Document
 from openpyxl import Workbook
@@ -76,7 +77,7 @@ def test_pdf_repairs_only_damaged_pages(tmp_path, monkeypatch, fallback, expecte
         Mock(extract_text=Mock(return_value=text))
         for text in ("Introduction", "", "Educa\x00onal Research", "Results")
     ])
-    monkeypatch.setattr(parsers, "PdfReader", Mock(return_value=reader))
+    monkeypatch.setattr(pypdf, "PdfReader", Mock(return_value=reader))
     executable = str(tmp_path / "tools" / "pdftotext")
     monkeypatch.setattr(parsers, "resolve_tool", lambda _: executable)
     run = Mock(side_effect=fallback) if isinstance(fallback, Exception) else Mock(
@@ -102,7 +103,7 @@ def test_pdf_distinguishes_margin_cleanup_from_missing_text(tmp_path, monkeypatc
         Mock(extract_text=Mock(return_value=text))
         for text in ("Introduction", "Page 2 of 5", "  \n", "\ufffd", "Results")
     ])
-    monkeypatch.setattr(parsers, "PdfReader", Mock(return_value=reader))
+    monkeypatch.setattr(pypdf, "PdfReader", Mock(return_value=reader))
     monkeypatch.setattr(parsers, "_pdftotext", lambda *_: "")
     assert parse_file(path) == ParsedFile("PDF", "Introduction\n\n\ufffd\n\nResults", (
         PdfPage(1, "Introduction"),
@@ -124,7 +125,7 @@ def test_pdf_ocr_runs_only_after_both_text_extractors_find_nothing(tmp_path, mon
     ])
     fallback = Mock(side_effect=lambda _, page: "From the second extractor\n" if page == 3 else "")
     recognize = Mock(side_effect=["A scanned paragraph.  \n\f", "  \f", "Recovered damaged page.\n"])
-    monkeypatch.setattr(parsers, "PdfReader", Mock(return_value=reader))
+    monkeypatch.setattr(pypdf, "PdfReader", Mock(return_value=reader))
     monkeypatch.setattr(parsers, "_pdftotext", fallback)
     monkeypatch.setattr(ocr, "read_page", recognize)
 
@@ -290,3 +291,47 @@ def test_unusable_input_is_skipped(tmp_path, name, data, reason):
     if data is not None:
         path.write_bytes(data)
     assert parse_file(path) == SkippedFile(reason)
+
+
+def test_source_limit_is_checked_before_extraction(tmp_path, monkeypatch):
+    path = tmp_path / "notes.txt"
+    path.write_text("example")
+    monkeypatch.setattr(parsers, "MAX_SOURCE_BYTES", 6)
+    plain = Mock(side_effect=AssertionError)
+    monkeypatch.setattr(parsers, "_plain", plain)
+    assert parse_file(path) == SkippedFile("source_limit")
+    plain.assert_not_called()
+
+
+def test_pdf_page_limit_is_checked_before_page_extraction(tmp_path, monkeypatch):
+    path = tmp_path / "sample.pdf"
+    writer = PdfWriter()
+    for _ in range(3):
+        writer.add_blank_page(width=72, height=72)
+    writer.write(path)
+    monkeypatch.setattr(parsers, "MAX_PDF_PAGES", 2)
+    from pypdf import PageObject
+
+    extract = Mock(side_effect=AssertionError)
+    monkeypatch.setattr(PageObject, "extract_text", extract)
+    assert parse_file(path) == SkippedFile("pdf_limit")
+    extract.assert_not_called()
+
+
+@pytest.mark.parametrize("ext", [".docx", ".pptx", ".xlsx"])
+def test_office_limit_counts_all_uncompressed_entries(tmp_path, monkeypatch, ext):
+    path = tmp_path / f"document{ext}"
+    with ZipFile(path, "w") as archive:
+        archive.writestr("first.xml", "x" * 5)
+        archive.writestr("second.xml", "y" * 6)
+    monkeypatch.setattr(parsers, "MAX_OFFICE_BYTES", 10)
+    extract = Mock(side_effect=AssertionError)
+    monkeypatch.setitem(parsers._OFFICE, ext, extract)
+    assert parse_file(path) == SkippedFile("office_limit")
+    extract.assert_not_called()
+
+
+def test_open_failures_are_reported_as_unreadable(tmp_path, monkeypatch):
+    opener = Mock(side_effect=PermissionError)
+    monkeypatch.setattr(parsers, "open", opener, raising=False)
+    assert parse_file(tmp_path / "notes.txt") == SkippedFile("unreadable")

@@ -2,7 +2,9 @@
 
 import codecs
 import mimetypes
+import os
 import re
+import stat
 import subprocess
 from collections.abc import Iterable, Iterator
 from contextlib import closing
@@ -13,18 +15,14 @@ from pathlib import Path
 from typing import BinaryIO
 from zipfile import ZipFile
 
-from docx import Document
-from docx.table import Table
-from openpyxl import load_workbook
-from pptx import Presentation
-from pptx.enum.shapes import MSO_SHAPE_TYPE
-from pypdf import PdfReader
-
 from . import ocr
 from .cleaner import clean_pages, clean_text
 from .tools import resolve_tool
 
 _CONTROL = re.compile(r"[\x00-\x08\x0e-\x1f\x7f-\x9f]")
+MAX_SOURCE_BYTES = 32 * 1024**2
+MAX_OFFICE_BYTES = 128 * 1024**2
+MAX_PDF_PAGES = 500
 _IMAGE_SIGNATURES = (b"\x89PNG\r\n\x1a\n", b"\xff\xd8\xff", b"GIF87a", b"GIF89a")
 # Common media extensions must also work without a system MIME database.
 _MEDIA = {
@@ -131,9 +129,13 @@ def _usable_pdf_text(text: str) -> bool:
 
 
 def _pdf(stream: BinaryIO, path: Path, ocr_lang: str | None) -> ParsedFile | SkippedFile:
+    from pypdf import PdfReader
+
     reader = PdfReader(stream, strict=True)
     if reader.is_encrypted:
         return SkippedFile("encrypted")
+    if len(reader.pages) > MAX_PDF_PAGES:
+        return SkippedFile("pdf_limit")
     texts = []
     partial = set()
     for number, page in enumerate(reader.pages, 1):
@@ -190,6 +192,9 @@ def _markdown_table(rows: Iterable[Iterable[object]]) -> str:
 
 
 def _docx(stream: BinaryIO) -> str:
+    from docx import Document
+    from docx.table import Table
+
     blocks = []
     for block in Document(stream).iter_inner_content():
         if isinstance(block, Table):
@@ -200,6 +205,8 @@ def _docx(stream: BinaryIO) -> str:
 
 
 def _shape_text(shapes) -> Iterator[str]:
+    from pptx.enum.shapes import MSO_SHAPE_TYPE
+
     for shape in shapes:
         if shape.shape_type == MSO_SHAPE_TYPE.GROUP:
             yield from _shape_text(shape.shapes)
@@ -210,6 +217,8 @@ def _shape_text(shapes) -> Iterator[str]:
 
 
 def _pptx(stream: BinaryIO) -> str:
+    from pptx import Presentation
+
     slides = []
     for number, slide in enumerate(Presentation(stream).slides, 1):
         slides.append(f"## Slide {number}")
@@ -239,6 +248,8 @@ def _xlsx_cell(cell, cached: object) -> object:
 
 
 def _xlsx(stream: BinaryIO) -> str:
+    from openpyxl import load_workbook
+
     with (
         closing(load_workbook(stream, read_only=True, data_only=False)) as workbook,
         closing(load_workbook(stream, read_only=True, data_only=True)) as cached,
@@ -269,21 +280,43 @@ def _xlsx(stream: BinaryIO) -> str:
 _OFFICE = {".docx": _docx, ".pptx": _pptx, ".xlsx": _xlsx}
 
 
+def _metadata_skip(path: Path, mime: str) -> str | None:
+    suffix = path.suffix.lower()
+    if suffix in _MEDIA:
+        return _MEDIA[suffix]
+    if mime.startswith("image/"):
+        return "image"
+    if mime.startswith(("audio/", "video/")) and suffix not in _SOURCE:
+        return mime.partition("/")[0]
+    if suffix in {".bin", ".doc", ".ppt", ".xls", ".rtf", ".zip", ".exe"}:
+        return "unsupported"
+    return None
+
+
+def metadata_skip(path: Path) -> str | None:
+    """Return a skip reason based only on the filename and its inferred MIME type."""
+    return _metadata_skip(path, mimetypes.guess_type(path.name)[0] or "")
+
+
+def _open_regular(path: str, flags: int) -> int:
+    # Nonblocking open prevents a regular file replaced with a FIFO from hanging.
+    return os.open(path, flags | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_NOFOLLOW", 0))
+
+
 def parse_file(path: Path, *, ocr_lang: str | None = None) -> ParsedFile | SkippedFile:
     """Parse one file, isolating malformed documents and filesystem errors."""
     path = Path(path)
     suffix = path.suffix.lower()
-    if suffix in _MEDIA:
-        return SkippedFile(_MEDIA[suffix])
     mime = mimetypes.guess_type(path.name)[0] or ""
-    if mime.startswith("image/"):
-        return SkippedFile("image")
-    if mime.startswith(("audio/", "video/")) and suffix not in _SOURCE:
-        return SkippedFile(mime.partition("/")[0])
-    if suffix in {".bin", ".doc", ".ppt", ".xls", ".rtf", ".zip", ".exe"}:
-        return SkippedFile("unsupported")
+    if reason := _metadata_skip(path, mime):
+        return SkippedFile(reason)
     try:
-        with path.open("rb") as stream:
+        with open(path, "rb", opener=_open_regular) as stream:
+            info = os.fstat(stream.fileno())
+            if not stat.S_ISREG(info.st_mode):
+                return SkippedFile("special")
+            if info.st_size > MAX_SOURCE_BYTES:
+                return SkippedFile("source_limit")
             if suffix == ".pdf":
                 return _pdf(stream, path, ocr_lang)
             if suffix in _OFFICE:
@@ -292,8 +325,11 @@ def parse_file(path: Path, *, ocr_lang: str | None = None) -> ParsedFile | Skipp
                     return SkippedFile("compound")
                 stream.seek(0)
                 with ZipFile(stream) as archive:
-                    if any(part.flag_bits & 1 for part in archive.infolist()):
+                    parts = archive.infolist()
+                    if any(part.flag_bits & 1 for part in parts):
                         return SkippedFile("encrypted")
+                    if sum(part.file_size for part in parts) > MAX_OFFICE_BYTES:
+                        return SkippedFile("office_limit")
                 stream.seek(0)
                 return ParsedFile(suffix[1:].upper(), _OFFICE[suffix](stream))
             return _plain(stream, path, mime)

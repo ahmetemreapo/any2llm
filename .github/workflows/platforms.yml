@@ -21,7 +21,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [windows-latest, macos-latest, ubuntu-latest]
-        python: ["3.10", "3.14"]
+        python: ["3.11", "3.14"]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -31,6 +31,25 @@ jobs:
       - run: python -m pip install ".[dev]"
       - run: any2llm --lang en --help
       - run: python -m pytest -q
+
+  dependency-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install in a clean Python 3.11 environment
+        run: |
+          python -m venv "$RUNNER_TEMP/any2llm-audit"
+          "$RUNNER_TEMP/any2llm-audit/bin/python" -m pip install --upgrade pip "setuptools>=84.1.0"
+          "$RUNNER_TEMP/any2llm-audit/bin/python" -m pip install .
+          "$RUNNER_TEMP/any2llm-audit/bin/python" -m pip show Pillow
+      - name: Audit installed dependencies
+        run: |
+          python -m pip install pip-audit
+          "$RUNNER_TEMP/any2llm-audit/bin/python" -m pip list --format=freeze --exclude any2llm > "$RUNNER_TEMP/resolved.txt"
+          python -m pip_audit --strict --no-deps --disable-pip -r "$RUNNER_TEMP/resolved.txt"
 
   alpine:
     runs-on: ubuntu-latest

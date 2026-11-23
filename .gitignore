@@ -1,4 +1,8 @@
+.DS_Store
+.idea/
+.vscode/
 .venv/
+venv/
 __pycache__/
 *.py[cod]
 *.egg-info/
@@ -7,3 +11,5 @@ build/
 _llm_pack/
 test_sandbox/
 .pytest_cache/
+.ruff_cache/
+.coverage

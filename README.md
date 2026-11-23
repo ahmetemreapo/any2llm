@@ -33,6 +33,8 @@ The batch contains the Excel table and all three physical PDF page numbers. The 
 </file>
 ```
 
+Code and HTML stay readable inside file and page blocks. For example, `a < b && c > d` appears exactly as written. A literal closing tag reserved by the pack format gets an extra backslash, so source text containing `</file>` appears as `<\/file>`.
+
 In your AI chat, attach `examples/delivery-dates/_llm_pack/batch_01_of_1.md`, then paste the contents of `PROMPT.txt` from that same folder into the message box and send.
 
 ## Install from this source folder
@@ -67,7 +69,7 @@ On Linux, some distributions package venv and pip separately. If creating the en
 
 1. Go to the folder containing your documents. On Windows, right-click inside the folder in File Explorer and choose **Open in Terminal** if available. On macOS or Linux you can open Terminal and enter `cd "/path/to/My Documents"`, using your own folder path.
 2. Run `any2llm`. On first use, choose a language, choose how to group the documents, and decide whether to open the prepared files automatically. The language menu uses your system language when supported and English otherwise. The remaining questions use your choice. Press Enter to keep the highlighted option.
-3. All readable files start selected. Press Enter to keep them all, or use the arrow keys and Space to remove individual files. With `any2llm --plain`, use numbered choices. Run `any2llm -r` to look in subfolders too.
+3. All readable files that pass the scan filters start selected. Press Enter to keep them all, or use the arrow keys and Space to remove individual files. With `any2llm --plain`, use numbered choices. Run `any2llm -r` to look in subfolders too.
 4. At the end, follow the terminal instructions. Attach the named `batch_*.md` files to one message. The terminal confirms whether it automatically copied the instructions to your clipboard. Paste those instructions into the message box and send. You can also copy them from `PROMPT.txt` in the output folder.
 5. When you receive the first reply from your AI chat, type the continuation word shown in the terminal to move to the next numbered file.
 
@@ -83,4 +85,6 @@ The terminal interface and chat instructions support English (`en`), Mandarin Ch
 
 any2llm extracts text from PDFs, paragraphs and tables from Word documents, text and tables from slides, and cell values or formulas from Excel sheets. Selected PDFs with some extractable text retain their physical page numbers. Pages from which no text could be extracted are reported in the terminal and marked in the pack. A PDF without any usable text is skipped. Images, audio and video stay out of the prepared files. HTML remains source text, including any CSS and JavaScript. Grouping reduces the number of attachments. Your chat service still sets its own size and attachment limits.
 
-For files left out, the terminal explains each reason and suggests what to try. Run `any2llm --details` for the full list of affected files, or `any2llm setup` to change your preferences. Run `any2llm --help` for advanced options. Without an interactive terminal, `any2llm -y` selects all readable files and uses saved settings or temporary defaults.
+The scan skips common environment and build directories and flags potentially sensitive filenames such as `credentials.json`, `id_rsa`, and `server.pem`. Use `--include-sensitive` to allow those filenames through the sensitive-file filter. The scan also applies simple rules from the root `.gitignore`. Add your own exclusions with `--exclude '*.log' --exclude 'private/'`. Quote globs to prevent your shell from expanding them.
+
+For reported skips, the terminal explains each reason and suggests what to try. Run `any2llm --details` for the full list of reported files, or `any2llm setup` to change your preferences. Run `any2llm --help` for advanced options. Without an interactive terminal, `any2llm -y` selects all readable files that pass the scan filters and uses saved settings or temporary defaults.

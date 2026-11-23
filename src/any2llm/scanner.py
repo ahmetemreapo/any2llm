@@ -2,14 +2,22 @@
 
 import os
 import stat
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
+from fnmatch import fnmatchcase
 from pathlib import Path
 
+from .ignore import PathPattern, read_gitignore
 from .output import owned_outputs
 from .parsers import ParsedFile, SkippedFile, parse_file
 
-IGNORED_DIRS = {"node_modules", "__pycache__", "_llm_pack"}
+IGNORED_DIRS = {
+    ".venv", "__MACOSX", "__pycache__", "_llm_pack", "build", "dist", "env",
+    "node_modules", "site-packages", "target", "vendor", "venv",
+}
+_SENSITIVE_PATTERNS = (
+    "*.pem", "*.key", "*.p12", "*.pfx", "id_rsa*", "id_ed25519*", "credentials*", "secrets*", "*.kdbx",
+)
 
 
 @dataclass
@@ -39,6 +47,7 @@ def _windows_entry(entry: os.DirEntry) -> str | None:
 def scan_folder(
     root: Path, recursive: bool = False, *,
     output_dir: Path | None = None, on_file: Callable[[], None] | None = None,
+    include_sensitive: bool = False, exclude: Iterable[str] = (),
 ) -> ScanResult:
     """Scan regular files. Raise OSError if the root cannot be listed."""
     root = Path(os.path.realpath(root))
@@ -46,11 +55,28 @@ def scan_folder(
         output_dir = Path(os.path.realpath(output_dir))
     generated = owned_outputs(root) if root == output_dir else set()
     result = ScanResult()
+    exclusions = [PathPattern.parse(pattern) for pattern in exclude]
+    gitignore = []
+
+    def is_excluded(relative: Path, *, is_dir: bool) -> bool:
+        if any(pattern.matches(relative, is_dir=is_dir) for pattern in exclusions):
+            return True
+        for rule in reversed(gitignore):
+            if rule.pattern.matches(relative, is_dir=is_dir):
+                return rule.ignored
+        return False
+
     pending = [root]
     while pending:
         directory = pending.pop()
         try:
             with os.scandir(directory) as entries:
+                if directory == root:
+                    try:
+                        gitignore = read_gitignore(root / ".gitignore")
+                    except OSError:
+                        result.skipped[Path(".gitignore")] = "unreadable"
+                        return result
                 for entry in entries:
                     if entry.name.startswith("."):
                         continue
@@ -66,14 +92,23 @@ def scan_folder(
                             if kind == "special":
                                 result.skipped[relative] = kind
                                 continue
-                        if entry.is_dir(follow_symlinks=False):
-                            if path != output_dir and entry.name not in IGNORED_DIRS:
-                                result.has_subfolders = True
-                                if recursive:
-                                    pending.append(path)
+                        is_dir = entry.is_dir(follow_symlinks=False)
+                        if is_dir and (path == output_dir or entry.name in IGNORED_DIRS):
+                            continue
+                        if is_excluded(relative, is_dir=is_dir):
+                            continue
+                        if is_dir:
+                            result.has_subfolders = True
+                            if recursive:
+                                pending.append(path)
                             continue
                         if not entry.is_file(follow_symlinks=False):
                             result.skipped[relative] = "special"
+                            continue
+                        if not include_sensitive and any(
+                            fnmatchcase(entry.name.lower(), pattern) for pattern in _SENSITIVE_PATTERNS
+                        ):
+                            result.skipped[relative] = "sensitive"
                             continue
                         parsed = parse_file(path)
                         if on_file is not None:

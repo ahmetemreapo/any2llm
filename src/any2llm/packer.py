@@ -7,6 +7,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
 from pathlib import Path
 from xml.etree import ElementTree as ET
+from xml.sax.saxutils import quoteattr
 
 from .output import write_pack
 from .parsers import ParsedFile
@@ -14,11 +15,18 @@ from .tokenizer import count_tokens
 
 PRESETS = {"High Detail": 12_000, "Balanced": 25_000, "Single File": None}
 _INVALID_XML = re.compile(r"[^\x09\x0a\x0d\x20-\ud7ff\ue000-\ufffd\U00010000-\U0010ffff]")
+_CONTENT_END_TAG = re.compile(r"<\\*/(?:file|page|manifest)>")
+_EMPTY_PAGE = "\ud800"  # Cannot occur in UTF-8 content.
 
 
-def _xml_text(text: str) -> str:
+def _xml_attribute(text: str) -> str:
     # Represent characters XML 1.0 cannot encode, including surrogateescaped paths.
     return _INVALID_XML.sub(lambda match: ascii(match[0])[1:-1], text)
+
+
+def _utf8_text(text: str) -> str:
+    # Keep lone surrogates printable when writing UTF-8 batches.
+    return re.sub(r"[\ud800-\udfff]", lambda match: ascii(match[0])[1:-1], text)
 
 
 @dataclass(frozen=True)
@@ -41,27 +49,36 @@ class _Part:
     end: int | None = None
 
 
-def _render_content(block: ET.Element, part: _Part) -> None:
+def _raw_content(text: str) -> str:
+    # Add one backslash even to already escaped spellings, so decoding is lossless.
+    return _CONTENT_END_TAG.sub(lambda match: "<\\" + match[0][1:], text)
+
+
+def _start_tag(name: str, attrs: dict[str, str]) -> str:
+    attributes = " ".join(f"{key}={quoteattr(value)}" for key, value in attrs.items())
+    return f"<{name} {attributes}>"
+
+
+def _render_content(part: _Part) -> str:
     if not part.pages:
-        block.text = part.text[part.start:part.end]
-        return
+        return _raw_content(part.text[part.start:part.end])
 
     end = len(part.text) if part.end is None else part.end
     first = bisect_right(part.pages, part.start, key=lambda page: page.offset) - 1
-    block.text = "\n"
+    pages = []
     for index in range(first, len(part.pages)):
         page = part.pages[index]
         if page.offset >= end:
             break
         next_offset = part.pages[index + 1].offset if index + 1 < len(part.pages) else end
-        element = ET.SubElement(block, "page", number=str(page.number))
+        attrs = {"number": str(page.number)}
         if page.partial:
-            element.set("status", "partial")
+            attrs["status"] = "partial"
         if page.no_text:
-            element.set("extraction", "no-extractable-text")
+            attrs["extraction"] = "no-extractable-text"
         content = part.text[max(part.start, page.offset):min(end, next_offset)]
-        element.text = content.removesuffix("\0")
-        element.tail = "\n"
+        pages.append(_start_tag("page", attrs) + _raw_content(content.removesuffix(_EMPTY_PAGE)) + "</page>")
+    return "\n" + "\n".join(pages) + "\n"
 
 
 def _render(parts: list[_Part], number: int, total: int, counts: Counter[str]) -> str:
@@ -72,9 +89,7 @@ def _render(parts: list[_Part], number: int, total: int, counts: Counter[str]) -
         if part.number:
             attrs["part"] = f"{part.number}/{counts[part.id] or 1}"
         ET.SubElement(manifest, "entry", attrs)
-        block = ET.Element("file", attrs)
-        _render_content(block, part)
-        blocks.append(ET.tostring(block, encoding="unicode", short_empty_elements=False))
+        blocks.append(_start_tag("file", attrs) + _render_content(part) + "</file>")
     ET.indent(manifest)
     return "\n\n".join([ET.tostring(manifest, encoding="unicode"), *blocks]) + "\n"
 
@@ -127,8 +142,9 @@ def _group(files: list[_Part], limit: int, total: int, counts: Counter[str]) -> 
         while start < len(file.text):
             part = replace(file, number=number, start=start)
 
+            # _split_end calls this closure within the current iteration.
             def prefix_fits(prefix: str) -> bool:
-                return fits(replace(part, end=start + len(prefix)))
+                return fits(replace(part, end=start + len(prefix)))  # noqa: B023
 
             end = _split_end(file.text, start, limit, prefix_fits)
             batches[-1].append(replace(part, end=end))
@@ -160,16 +176,16 @@ def _documents(files: list[_Part], limit: int | None) -> list[str]:
 
 
 def _pack_file(file_id: str, path: Path, parsed: ParsedFile) -> _Part:
-    name, file_type = _xml_text(path.as_posix()), _xml_text(parsed.file_type)
+    name, file_type = _xml_attribute(path.as_posix()), _xml_attribute(parsed.file_type)
     if not parsed.pages:
-        return _Part(file_id, name, file_type, _xml_text(parsed.text))
+        return _Part(file_id, name, file_type, _utf8_text(parsed.text))
 
     pages = []
     texts = []
     offset = 0
     for page in parsed.pages:
         # An empty page needs one position of its own when splitting a PDF.
-        text = _xml_text(page.text) or "\0"
+        text = _utf8_text(page.text) or _EMPTY_PAGE
         pages.append(_PageStart(offset, page.number, page.partial, page.no_text))
         texts.append(text)
         offset += len(text)

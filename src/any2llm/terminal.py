@@ -14,7 +14,6 @@ from rich.console import Console
 from rich.text import Text
 from rich.theme import Theme
 
-
 _LOGO = (
     ("╭───╮", "", "╭─────────────╮"),
     ("│   ╰─────╮", "·  ·  ▸", "│   any2llm   │"),
@@ -186,9 +185,9 @@ def select_files(paths: list[Path], msg: dict[str, str], *, plain: bool) -> list
             f"{number}. {display_path(path) if occurrences[label] > 1 else label}",
             value=path, checked=True,
         )
-        for number, (path, label) in enumerate(zip(paths, labels), 1)
+        for number, (path, label) in enumerate(zip(paths, labels, strict=False), 1)
     ]
-    if any(label != display_path(path) for path, label in zip(paths, labels)):
+    if any(label != display_path(path) for path, label in zip(paths, labels, strict=False)):
         screen.line(msg["full_paths"])
     print()
     return questionary.checkbox(

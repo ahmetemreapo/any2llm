@@ -86,7 +86,39 @@ def test_recursive_custom_output_rerun_with_turkish_prompts(tmp_path, monkeypatc
     assert "## Tur" not in logs
 
 
-@pytest.mark.parametrize("args", [["--lang", "de"], ["--max-tokens", "0"], ["-o"]])
+def test_recursive_yes_honors_sensitive_and_exclude_flags(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(cli, "_interactive", lambda: False)
+    monkeypatch.setattr(tokenizer, "get_encoding", lambda: None)
+    monkeypatch.setattr(cli, "select_files", Mock(side_effect=AssertionError))
+    (tmp_path / ".gitignore").write_text("credentials-ignored.json\n")
+    for name in (
+        "notes.txt", "credentials.json", "credentials-ignored.json", "id_rsa", "nested/server.pem",
+        "scratch.tmp", "nested/skip/output.txt", "venv/library.txt", "build/library.txt",
+    ):
+        path = tmp_path / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("example data")
+    args = [str(tmp_path), "-r", "-y", "--lang", "en"]
+    batch = tmp_path / "_llm_pack" / "batch_01_of_1.md"
+
+    assert cli.main(args) == 0
+    packed = batch.read_text(encoding="utf-8")
+    assert all(f'name="{name}"' in packed for name in ("notes.txt", "scratch.tmp", "nested/skip/output.txt"))
+    assert "credentials" not in packed and "server.pem" not in packed and "id_rsa" not in packed
+    assert "library.txt" not in packed
+    logs = capsys.readouterr().out
+    assert "credentials.json — potentially sensitive file" in logs
+    assert f'{Path("nested") / "server.pem"} — potentially sensitive file' in logs
+    assert "id_rsa — potentially sensitive file" in logs
+
+    assert cli.main([*args, "--include-sensitive", "--exclude", "*.tmp", "--exclude", "nested/skip/"]) == 0
+    packed = batch.read_text(encoding="utf-8")
+    assert all(f'name="{name}"' in packed for name in ("notes.txt", "credentials.json", "nested/server.pem", "id_rsa"))
+    assert "credentials-ignored.json" not in packed and "library.txt" not in packed
+    assert "scratch.tmp" not in packed and "nested/skip/output.txt" not in packed
+
+
+@pytest.mark.parametrize("args", [["--lang", "de"], ["--max-tokens", "0"], ["-o"], ["--exclude"]])
 def test_invalid_flags(args, capsys):
     assert cli.main(args) == 2
     assert f"{args[0]}" in capsys.readouterr().err

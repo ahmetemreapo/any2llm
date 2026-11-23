@@ -32,6 +32,7 @@ def test_localized_first_run_and_daily_use(tmp_path, monkeypatch, capsys, code, 
     monkeypatch.setattr(cli, "_open_folder", Mock(side_effect=AssertionError))
     (tmp_path / "Notes.txt").write_text("A line from the original file.\n" * 100)
     (tmp_path / "Picture.png").touch()
+    (tmp_path / "credentials.json").touch()
     answers = iter(["", "", "2", ""])
     asked = []
     monkeypatch.setattr("builtins.input", lambda question: (asked.append(question), next(answers))[1])
@@ -47,6 +48,7 @@ def test_localized_first_run_and_daily_use(tmp_path, monkeypatch, capsys, code, 
     assert f'2/3  {msg["detail"]}' in logs and f'3/3  {msg["open"]}' in logs
     assert msg["select"] in logs and f'Picture.png — {msg["image"]}' in logs
     assert msg["skipped_help"] in logs and msg["media_help"] in logs
+    assert f'credentials.json — {msg["sensitive"]}' in logs and msg["sensitive_help"] in logs
     assert msg["clipboard_failed"] in logs and msg["clipboard_copied"] not in logs
     assert msg["clipboard"] in logs and msg["next"] in logs and word in msg["next"]
     saved = config.Settings(code, "Balanced", False)
@@ -55,6 +57,7 @@ def test_localized_first_run_and_daily_use(tmp_path, monkeypatch, capsys, code, 
     output = tmp_path / "_llm_pack"
     batches = sorted(output.glob("batch_*.md"))
     assert len(batches) > 1
+    assert all("credentials.json" not in path.read_text(encoding="utf-8") for path in batches)
     prompt = (output / "PROMPT.txt").read_text(encoding="utf-8")
     assert reply in prompt and word in prompt
     assert all(path.name in prompt for path in batches)
@@ -72,7 +75,9 @@ def test_localized_first_run_and_daily_use(tmp_path, monkeypatch, capsys, code, 
     assert reply in (output / "PROMPT.txt").read_text(encoding="utf-8")
 
     assert cli.main(["--help"]) == 0
-    assert msg["help"] in capsys.readouterr().out
+    help_output = capsys.readouterr().out
+    assert msg["help"] in help_output
+    assert "--include-sensitive" in help_output and "--exclude GLOB" in help_output
     assert cli.main(["--max-tokens", "0"]) == 2
     assert msg["invalid_limit"] in capsys.readouterr().err
 

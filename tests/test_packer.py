@@ -1,16 +1,34 @@
+import re
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
 import pytest
 
 from any2llm import tokenizer
-from any2llm.packer import write_batches
+from any2llm.packer import build_batches, write_batches
 from any2llm.parsers import ParsedFile, PdfPage
 
 
 @pytest.fixture(autouse=True)
 def offline_tokenizer(monkeypatch):
     monkeypatch.setattr(tokenizer, "get_encoding", lambda: None)
+
+
+def read_blocks(text, tag, separator):
+    closing = f"</{tag}>"
+    assert text.endswith(closing)
+    blocks = []
+    for chunk in text.removesuffix(closing).split(closing + separator):
+        header, body = chunk.split(">", 1)
+        block = ET.fromstring(header + "/>")
+        assert block.tag == tag and closing not in body
+        block.text = body or None
+        blocks.append(block)
+    return blocks
+
+
+def decode_content(fragment):
+    return re.sub(r"<\\(\\*/(?:file|page|manifest)>)", r"<\1", fragment)
 
 
 def read_batches(paths, limit=None):
@@ -21,12 +39,32 @@ def read_batches(paths, limit=None):
         if limit is not None:
             assert tokenizer.count_tokens(text) <= limit
         assert text.startswith("<manifest")
-        manifest, *blocks = ET.fromstring(f"<root>{text}</root>")
+        header, content = text.split("</manifest>\n\n", 1)
+        manifest = ET.fromstring(header + "</manifest>")
+        blocks = read_blocks(content.removesuffix("\n"), "file", "\n\n")
         assert manifest.attrib == {"batch": str(number), "total": str(len(paths))}
         assert all(block.tag == "file" for block in blocks)
         assert [entry.attrib for entry in manifest] == [block.attrib for block in blocks]
         batches.append(blocks)
     return batches
+
+
+def test_raw_markup_and_reversible_reserved_tags():
+    source = (
+        "<script>if (a < b && c > d) run();</script>\n"
+        r"</file> <\/file> <\\/file> </page> </manifest> &lt; <\/script>"
+    )
+    name = "a&\"'b.html"
+    packed, = build_batches({Path(name): ParsedFile("HTML", source)}).values()
+    header, content = packed.split("</manifest>\n\n", 1)
+    entry, = ET.fromstring(header + "</manifest>")
+    block, = read_blocks(content.removesuffix("\n"), "file", "\n\n")
+    assert entry.attrib == block.attrib == {"id": "1", "name": name, "type": "HTML"}
+    assert block.text == (
+        "<script>if (a < b && c > d) run();</script>\n"
+        r"<\/file> <\\/file> <\\\/file> <\/page> <\/manifest> &lt; <\/script>"
+    )
+    assert decode_content(block.text) == source
 
 
 @pytest.mark.parametrize(("preset", "limit", "expected"), [
@@ -48,6 +86,7 @@ def test_groups_whole_files_in_order(tmp_path, preset, limit, expected):
     ("  ünicode & <tag>  \n" * 220, "\n"),
     ("merhaba dünyaya " * 250, " "),
     ("😀中" * 1_500, None),
+    (r"a</file><\/file></page></manifest>" * 120, None),
 ])
 def test_large_file_splits_losslessly(tmp_path, text, boundary):
     name = 'nested/a&"b.md'
@@ -57,7 +96,7 @@ def test_large_file_splits_losslessly(tmp_path, text, boundary):
     batches = read_batches(paths, 100)
     assert all(len(batch) == 1 for batch in batches)
     blocks = [batch[0] for batch in batches]
-    assert "".join(block.text for block in blocks) == text
+    assert "".join(decode_content(block.text) for block in blocks) == text
     assert len({block.get("id") for block in blocks}) == 1
     for i, block in enumerate(blocks, 1):
         assert block.get("name") == name
@@ -80,14 +119,14 @@ def test_exact_limit_and_failed_repack_preserve_output(tmp_path):
 
 
 def test_split_pdf_keeps_missing_pages_and_repeats_partial_status(tmp_path):
-    body = "A & B\n" * 200
+    body = "A & B < C </page> </file>\n" * 100 + "\0"
     pages = (
         PdfPage(1, "Introduction"), PdfPage(2, "", no_text=True),
         PdfPage(3, body, partial=True), PdfPage(4, "Results"),
     )
     files = {Path("report.pdf"): ParsedFile("PDF", f"Introduction\n\n{body}\n\nResults", pages)}
     docs = read_batches(write_batches(files, tmp_path, max_tokens=100), limit=100)
-    elements = [page for batch in docs for block in batch for page in block.findall("page")]
+    elements = [page for batch in docs for block in batch for page in read_blocks(block.text[1:-1], "page", "\n")]
     assert elements[0].attrib == {"number": "1"}
     assert elements[1].attrib == {"number": "2", "extraction": "no-extractable-text"}
     assert elements[1].text is None
@@ -95,7 +134,7 @@ def test_split_pdf_keeps_missing_pages_and_repeats_partial_status(tmp_path):
     middle = elements[2:-1]
     assert len(middle) > 1
     assert all(page.attrib == {"number": "3", "status": "partial"} for page in middle)
-    assert "".join(page.text for page in middle) == body
+    assert "".join(decode_content(page.text) for page in middle) == body
 
 
 def test_rerun_clears_obsolete_batches(tmp_path):

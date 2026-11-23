@@ -1,4 +1,5 @@
 from pathlib import Path
+from unittest.mock import Mock
 
 import pytest
 from docx import Document
@@ -6,11 +7,15 @@ from openpyxl import Workbook
 from pptx import Presentation
 from pypdf import PdfWriter
 
+from any2llm import scanner
 from any2llm.scanner import scan_folder
 
 
 def test_scan_depth_and_ignores(tmp_path):
-    for name in (".git", ".venv", ".hidden", "node_modules", "__pycache__", "_llm_pack", "src"):
+    for name in (
+        ".git", ".venv", ".hidden", "node_modules", "__pycache__", "_llm_pack",
+        "venv", "env", "build", "dist", "target", "site-packages", "__MACOSX", "vendor", "src", "src/vendor",
+    ):
         (tmp_path / name).mkdir()
         (tmp_path / name / "nested.txt").write_text("Hello")
     (tmp_path / ".env").touch()
@@ -19,6 +24,79 @@ def test_scan_depth_and_ignores(tmp_path):
     result = scan_folder(tmp_path, recursive=True)
     assert result.readable == [Path("empty"), Path("src/nested.txt")]
     assert not result.skipped
+
+
+@pytest.mark.parametrize("name", [
+    "server.pem", "server.KEY", "keystore.p12", "client.pfx", "id_rsa", "id_rsa.pub",
+    "ID_ED25519.backup", "credentials.json", "Secrets.local.txt", "vault.kdbx",
+])
+def test_sensitive_files_are_not_parsed_without_opt_in(tmp_path, monkeypatch, name):
+    relative = Path("nested") / name
+    path = tmp_path / relative
+    path.parent.mkdir()
+    path.write_text("example data")
+    parse = Mock(wraps=scanner.parse_file)
+    monkeypatch.setattr(scanner, "parse_file", parse)
+
+    result = scan_folder(tmp_path, recursive=True)
+    assert result.readable == []
+    assert result.skipped == {relative: "sensitive"}
+    parse.assert_not_called()
+
+    result = scan_folder(tmp_path, recursive=True, include_sensitive=True)
+    assert result.readable == [relative]
+    assert not result.skipped
+    parse.assert_called_once_with(path.resolve())
+
+
+def test_root_gitignore_matches_simple_git_patterns(tmp_path):
+    (tmp_path / ".gitignore").write_text(
+        "# comment\n\n*.log\n!keep.log\n/root.txt\nscratch/\ndocs/*.tmp\n"
+        "archives/**/draft?.txt\ndocs/out/**\n!docs/out/keep.txt\n"
+        "excluded/\n!excluded/keep.txt\n\\!literal.txt\n\\#literal.txt\n",
+        encoding="utf-8-sig",
+    )
+    excluded = [
+        "debug.log", "sub/debug.log", "root.txt", "sub/scratch/cache.txt", "docs/drop.tmp",
+        "archives/draft1.txt", "archives/x/y/draft2.txt", "docs/out/drop.txt",
+        "excluded/keep.txt", "!literal.txt", "#literal.txt",
+    ]
+    kept = ["keep.log", "docs/keep.log", "docs/nested/keep.tmp", "sub/root.txt", "docs/scratch", "docs/out/keep.txt"]
+    for name in [*excluded, *kept]:
+        path = tmp_path / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("example data")
+    (tmp_path / "docs" / ".gitignore").write_text("keep.log\n")
+
+    result = scan_folder(tmp_path, recursive=True)
+    assert result.readable == sorted(map(Path, kept))
+    assert not result.skipped
+
+
+def test_excluded_directories_do_not_count_as_subfolders(tmp_path):
+    (tmp_path / "venv").mkdir()
+    (tmp_path / "root-ignore").mkdir()
+    (tmp_path / "cli-ignore").mkdir()
+    (tmp_path / ".gitignore").write_text("/root-ignore/\n")
+
+    result = scan_folder(tmp_path, exclude=["cli-ignore/"])
+    assert not result.has_subfolders
+
+
+def test_unreadable_gitignore_is_reported_before_files_are_selected(tmp_path, monkeypatch):
+    (tmp_path / ".gitignore").touch()
+    (tmp_path / "notes.txt").touch()
+    original = Path.read_text
+
+    def guarded_read(path, *args, **kwargs):
+        if path.name == ".gitignore":
+            raise PermissionError
+        return original(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", guarded_read)
+    result = scan_folder(tmp_path)
+    assert result.readable == []
+    assert result.skipped == {Path(".gitignore"): "unreadable"}
 
 
 def test_content_detection(tmp_path):

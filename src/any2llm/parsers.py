@@ -5,7 +5,9 @@ import mimetypes
 import re
 import subprocess
 from collections.abc import Iterable, Iterator
+from contextlib import closing
 from dataclasses import dataclass
+from datetime import date, datetime, time
 from html import escape
 from pathlib import Path
 from typing import BinaryIO
@@ -28,10 +30,11 @@ _MEDIA = {
     **dict.fromkeys((".mp4", ".m4v", ".mov", ".mkv", ".avi", ".webm"), "video"),
     **dict.fromkeys((".mp3", ".m4a", ".wav", ".aac", ".flac", ".ogg"), "audio"),
 }
-_SOURCE = set("""
-    .c .cc .cpp .cs .css .go .h .hpp .html .java .js .jsx .kt .lua .php .pl
-    .py .rb .rs .sh .sql .swift .ts .tsx .xml .yaml .yml .json .toml
-""".split())
+_SOURCE = {
+    ".c", ".cc", ".cpp", ".cs", ".css", ".go", ".h", ".hpp", ".html", ".java",
+    ".js", ".jsx", ".kt", ".lua", ".php", ".pl", ".py", ".rb", ".rs", ".sh",
+    ".sql", ".swift", ".ts", ".tsx", ".xml", ".yaml", ".yml", ".json", ".toml",
+}
 
 
 @dataclass(frozen=True)
@@ -96,10 +99,7 @@ def _plain(stream: BinaryIO, path: Path, mime: str) -> ParsedFile | SkippedFile:
     if text is None:
         return SkippedFile("binary")
     # Source files and Markdown can use trailing spaces and blank lines as data.
-    if suffix == ".txt":
-        content = clean_text(text)
-    else:
-        content = text.replace("\r\n", "\n").replace("\r", "\n")
+    content = clean_text(text) if suffix == ".txt" else text.replace("\r\n", "\n").replace("\r", "\n")
     return ParsedFile(suffix[1:].upper() if suffix else "Text", content)
 
 
@@ -145,7 +145,7 @@ def _pdf(stream: BinaryIO, path: Path) -> ParsedFile | SkippedFile:
 
     pages = tuple(
         PdfPage(number, cleaned, number in partial, not raw.replace("\ufffd", "").strip())
-        for number, (raw, cleaned) in enumerate(zip(texts, clean_pages(texts)), 1)
+        for number, (raw, cleaned) in enumerate(zip(texts, clean_pages(texts), strict=False), 1)
     )
     text = "\n\n".join(page.text for page in pages if page.text)
     if not text.replace("\ufffd", "").strip():
@@ -168,6 +168,7 @@ def _markdown_table(rows: Iterable[Iterable[object]]) -> str:
     if not cells:
         return ""
     width = max(map(len, cells))
+    # Use the first non-empty row as the table header.
     cells.insert(1, ["---"] * width)
     return "\n".join("| " + " | ".join(row + [""] * (width - len(row))) + " |" for row in cells)
 
@@ -200,19 +201,53 @@ def _pptx(stream: BinaryIO) -> str:
     return clean_text("\n\n".join(slides))
 
 
+def _xlsx_value(value: object) -> object:
+    if isinstance(value, datetime) and value.time() == time.min:
+        value = value.date()
+    return value.isoformat() if isinstance(value, date) else value
+
+
+def _xlsx_cell(cell, cached: object) -> object:
+    value = cell.value
+    if cell.data_type != "f":
+        return _xlsx_value(value)
+    if isinstance(value, str):
+        formula = value
+    else:
+        # Array formulas carry text, while data table formulas store their definition as attributes.
+        formula = getattr(value, "text", None)
+        if formula is None:
+            definition = ", ".join(f"{key}={setting}" for key, setting in value)
+            formula = f"[{definition}]"
+    return formula if cached is None else f"{_xlsx_value(cached)} ({formula})"
+
+
 def _xlsx(stream: BinaryIO) -> str:
-    workbook = load_workbook(stream, read_only=True)
-    try:
+    with (
+        closing(load_workbook(stream, read_only=True, data_only=False)) as workbook,
+        closing(load_workbook(stream, read_only=True, data_only=True)) as cached,
+    ):
         sections = []
+        hidden = []
         for sheet in workbook.worksheets:
+            if sheet.sheet_state != "visible":
+                hidden.append(" ".join(sheet.title.splitlines()))
+                continue
             sections.append(f"## {sheet.title}")
-            sheet.reset_dimensions()  # Some exporters write inaccurate used ranges.
-            table = _markdown_table(sheet.iter_rows(values_only=True))
+            cached_sheet = cached[sheet.title]
+            # Some exporters write inaccurate used ranges.
+            sheet.reset_dimensions()
+            cached_sheet.reset_dimensions()
+            rows = zip(sheet.iter_rows(), cached_sheet.iter_rows(values_only=True), strict=True)
+            table = _markdown_table(
+                (_xlsx_cell(cell, value) for cell, value in zip(cells, values, strict=True))
+                for cells, values in rows
+            )
             if table:
                 sections.append(table)
+        if hidden:
+            sections.append(f"Skipped hidden sheets ({', '.join(hidden)}).")
         return "\n\n".join(sections)
-    finally:
-        workbook.close()
 
 
 _OFFICE = {".docx": _docx, ".pptx": _pptx, ".xlsx": _xlsx}

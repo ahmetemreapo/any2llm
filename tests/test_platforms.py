@@ -10,8 +10,8 @@ from xml.etree import ElementTree as ET
 
 import pytest
 
-from any2llm.scanner import scan_folder
 from any2llm import languages
+from any2llm.scanner import scan_folder
 
 
 def test_windows_language_uses_display_language(monkeypatch):
@@ -54,7 +54,7 @@ def test_installed_command_packs_unicode_paths(tmp_path):
     docs = tmp_path / "Ders notları"
     nested = docs / "資料"
     nested.mkdir(parents=True)
-    (nested / "örnek.txt").write_bytes("İlk satır\r\nİkinci satır".encode("utf-8"))
+    (nested / "örnek.txt").write_bytes("İlk satır\r\nİkinci satır".encode())
     output = tmp_path / "Sohbet dosyaları"
     env = {
         **os.environ, "HOME": str(tmp_path), "USERPROFILE": str(tmp_path),

@@ -47,14 +47,10 @@ def test_custom_task_controls_scope_and_format(lang, task, signal, intermediate,
 @pytest.mark.parametrize(("lang", "instructions"), [
     ("en", [
         "tables, quotations, and numerical claims", "physical PDF page number in the <page>",
-        "research questions, hypotheses, and quotations", "effect versus association",
-        "report the original wording", "label your interpretation or calculation",
         "quote the readable source text first", "label the reconstruction as uncertain",
     ]),
     ("tr", [
         "tablolar, alıntılar ve sayısal iddialar", "<page> işaretindeki fiziksel PDF sayfa numarasını",
-        "Araştırma sorularında, hipotezlerde ve alıntılarda", "etki ile ilişki arasındaki ayrım",
-        "önce kaynaktaki ifadeyi veya sayıları ver", "kendi yorumunu veya hesabını açıkça belirt",
         "önce kaynaktaki okunabilen metni aktar", "tahminini belirsiz olarak işaretle",
     ]),
 ])
@@ -62,6 +58,25 @@ def test_master_prompt_requests_citations_and_source_fidelity(lang, instructions
     for names in (["batch_01_of_1.md"], ["batch_01_of_2.md", "batch_02_of_2.md"]):
         prompt = prompts.master_prompt(names, lang)
         assert all(instruction in prompt for instruction in instructions)
+
+
+@pytest.mark.parametrize(("lang", "partial", "research_terms"), [
+    ("ar", "partial", ("الفرضيات", "تصحيحاً للمنهج", "أعدت حساب")),
+    ("bn", "partial", ("গবেষণা প্রশ্ন", "পদ্ধতি সংশোধন", "নতুন গণনা")),
+    ("en", "page marked partial", ("hypotheses", "effect versus association", "recalculating a statistic")),
+    ("es", "partial", ("hipótesis", "corriges el método", "recalculas")),
+    ("fr", "partial", ("hypothèses", "proposes une correction", "recalcules")),
+    ("hi", "partial", ("परिकल्पनाओं", "पद्धति सुधारते", "गणना दोबारा")),
+    ("pt", "partial", ("hipóteses", "corrigir um método", "refizer um cálculo")),
+    ("ru", "partial", ("гипотез", "предлагаешь исправление", "пересчитываешь")),
+    ("tr", "Kısmen okunabilir", ("hipotezlerde", "etki ile ilişki", "yeniden hesaplamadan")),
+    ("ur", "partial", ("مفروضوں", "طریقے کی درستی", "نئی گنتی")),
+    ("zh", "partial", ("研究问题", "纠正方法", "重新计算")),
+])
+def test_localized_sources_keep_citations_and_partial_page_guidance(lang, partial, research_terms):
+    sources = prompts.PROMPTS[lang]["sources"]
+    assert "<page>" in sources and partial in sources
+    assert all(term not in sources for term in research_terms)
 
 
 @pytest.mark.parametrize(("contents", "expected"), [("prompt", True), ("", False)])

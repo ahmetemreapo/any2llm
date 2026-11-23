@@ -1,10 +1,14 @@
+from datetime import date, datetime
+from io import BytesIO
 from subprocess import CalledProcessError, CompletedProcess, TimeoutExpired
 from unittest.mock import Mock
+from xml.etree import ElementTree as ET
 from zipfile import ZipFile
 
 import pytest
 from docx import Document
 from openpyxl import Workbook
+from openpyxl.utils.datetime import to_excel
 from pptx import Presentation
 from pptx.util import Inches
 from pypdf import PdfWriter
@@ -114,8 +118,8 @@ def test_docx_preserves_paragraph_and_table_order(tmp_path):
     doc = Document()
     doc.add_paragraph("Before")
     table = doc.add_table(rows=2, cols=2)
-    for row, values in zip(table.rows, [("Item", "Qty"), ("Apple", "3")]):
-        for cell, value in zip(row.cells, values):
+    for row, values in zip(table.rows, [("Item", "Qty"), ("Apple", "3")], strict=False):
+        for cell, value in zip(row.cells, values, strict=False):
             cell.text = value
     doc.add_paragraph("After")
     doc.save(path)
@@ -152,12 +156,70 @@ def test_xlsx_sheet_tables(tmp_path):
     sheet.append(["Total", "=SUM(B2:B2)"])
     sheet.cell(10, 8).number_format = "0.00"
     workbook.create_sheet("Empty")
+    hidden = workbook.create_sheet("Hidden")
+    hidden.append(["Do not export"])
+    hidden.sheet_state = "hidden"
     workbook.create_sheet("Summary").append(["Done"])
+    very_hidden = workbook.create_sheet("Very\nHidden")
+    very_hidden.append(["Do not export this either"])
+    very_hidden.sheet_state = "veryHidden"
     workbook.save(path)
     assert parse_file(path) == ParsedFile(
         "XLSX", "## Inventory\n\n| Item | Stock |  |\n| --- | --- | --- |\n"
         "| A\\|B<br>C | 0 | False |\n| Total | =SUM(B2:B2) |  |\n\n"
-        "## Empty\n\n## Summary\n\n| Done |\n| --- |"
+        "## Empty\n\n## Summary\n\n| Done |\n| --- |\n\nSkipped hidden sheets (Hidden, Very Hidden)."
+    )
+
+
+@pytest.mark.parametrize("iso_dates", [False, True])
+def test_xlsx_formats_dates_and_datetimes_as_iso(tmp_path, iso_dates):
+    path = tmp_path / "dates.xlsx"
+    workbook = Workbook(iso_dates=iso_dates)
+    workbook.active.append(["Date", "Midnight", "Appointment", "Fractional"])
+    workbook.active.append([
+        date(2027, 3, 12), datetime(2027, 3, 12),
+        datetime(2027, 3, 12, 9, 15, 6), datetime(2027, 3, 12, 0, 0, 0, 123000),
+    ])
+    workbook.save(path)
+
+    assert parse_file(path) == ParsedFile(
+        "XLSX", "## Sheet\n\n| Date | Midnight | Appointment | Fractional |\n| --- | --- | --- | --- |\n"
+        "| 2027-03-12 | 2027-03-12 | 2027-03-12T09:15:06 | 2027-03-12T00:00:00.123000 |"
+    )
+
+
+def test_xlsx_shows_formula_and_cached_value(tmp_path):
+    path = tmp_path / "formulas.xlsx"
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.append(["Label", "Value"])
+    sheet.append(["Total", "=SUM(7,8)"])
+    sheet.append(["Zero", "=1-1"])
+    sheet.append(["Boolean", "=FALSE()"])
+    sheet.append(["Date", "=DATE(2027,3,12)"])
+    sheet["B5"].number_format = "yyyy-mm-dd"
+    sheet.append(["Literal text", "=not a formula"])
+    sheet["B6"].data_type = "s"
+    uncached = BytesIO()
+    workbook.save(uncached)
+
+    # openpyxl writes formulas without results, so populate Excel's cached values in the fixture.
+    sheet_name = "xl/worksheets/sheet1.xml"
+    namespaces = {"s": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
+    values = [("n", "15"), ("n", "0"), ("b", "0"), ("n", str(to_excel(datetime(2027, 3, 12))))]
+    with ZipFile(uncached) as source, ZipFile(path, "w") as target:
+        sheet_xml = ET.fromstring(source.read(sheet_name))
+        for row, (cell_type, value) in enumerate(values, start=2):
+            cell = sheet_xml.find(f".//s:c[@r='B{row}']", namespaces)
+            cell.set("t", cell_type)
+            cell.find("s:v", namespaces).text = value
+        for name in source.namelist():
+            target.writestr(name, ET.tostring(sheet_xml) if name == sheet_name else source.read(name))
+
+    assert parse_file(path) == ParsedFile(
+        "XLSX", "## Sheet\n\n| Label | Value |\n| --- | --- |\n"
+        "| Total | 15 (=SUM(7,8)) |\n| Zero | 0 (=1-1) |\n| Boolean | False (=FALSE()) |\n"
+        "| Date | 2027-03-12 (=DATE(2027,3,12)) |\n| Literal text | =not a formula |"
     )
 
 

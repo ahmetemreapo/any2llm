@@ -43,6 +43,8 @@ def _arguments(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--no-open", action="store_true")
     parser.add_argument("--plain", action="store_true")
     parser.add_argument("--details", action="store_true")
+    parser.add_argument("--include-sensitive", action="store_true")
+    parser.add_argument("--exclude", action="append", default=[], metavar="GLOB")
     parser.add_argument("-o", "--output", type=Path, default=Path("_llm_pack"))
     parser.add_argument("-y", "--yes", action="store_true")
     parser.add_argument("--ui-lang", choices=_LEGACY_LANGUAGES)
@@ -170,6 +172,7 @@ def _pack(args: argparse.Namespace, settings: Settings, lang: str, screen: Termi
         result = scan_folder(
             folder, args.recursive, output_dir=output_dir,
             on_file=on_file if screen.is_terminal else None,
+            include_sensitive=args.include_sensitive, exclude=args.exclude,
         )
     except OSError as exc:
         key = {

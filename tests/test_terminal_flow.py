@@ -28,6 +28,23 @@ import termios
 _ANSI = re.compile(rb"\x1b\[[0-?]*[ -/]*[@-~]")
 
 
+@pytest.fixture(params=[False, True], ids=["clipboard-unavailable", "clipboard-available"])
+def clipboard_available(request, tmp_path, monkeypatch):
+    # The CLI imports pyperclip in a child process. Give it a private clipboard.
+    contents = "text" if request.param else '""'
+    (tmp_path / "pyperclip.py").write_text(
+        "def copy(text):\n"
+        "    global clipboard\n"
+        f"    clipboard = {contents}\n\n"
+        "def paste():\n"
+        "    return clipboard\n",
+        encoding="utf-8",
+    )
+    pythonpath = os.environ.get("PYTHONPATH")
+    monkeypatch.setenv("PYTHONPATH", os.pathsep.join(filter(None, [str(tmp_path), pythonpath])))
+    return request.param
+
+
 def _run_menu(executable, folder, home, columns, steps, *, plain=False, color=False, locale="C"):
     master, slave = pty.openpty()
     fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 32, columns, 0, 0))
@@ -85,7 +102,7 @@ def _run_menu(executable, folder, home, columns, steps, *, plain=False, color=Fa
 @pytest.mark.parametrize(("columns", "language", "mode"), [
     (40, "tr", "monochrome"), (68, "en", "color"), (80, "tr", "plain"),
 ])
-def test_first_run_and_daily_keyboard_flow(tmp_path, columns, language, mode):
+def test_first_run_and_daily_keyboard_flow(tmp_path, columns, language, mode, clipboard_available):
     folder = tmp_path / "Test Documents"
     folder.mkdir()
     (folder / "A Notes.txt").write_text("Keep this")
@@ -124,6 +141,11 @@ def test_first_run_and_daily_keyboard_flow(tmp_path, columns, language, mode):
     saved_icon, scan_icon, chat_icon = ("", "", "") if plain else ("✓  ", "⌕  ", "↗  ")
     assert f'\n\n{saved_icon}{msg["saved"]}\n{msg["setup_again"]}\n\n{scan_icon}{msg["scanning"]}' in lines
     assert f'\n\n{chat_icon}{msg["open_chat"]}\n' in lines
+    clipboard_status = msg["clipboard_copied" if clipboard_available else "clipboard_failed"]
+    assert clipboard_status in lines
+    assert msg["paste" if clipboard_available else "clipboard"] in lines
+    attachment = msg["attach_one"].format(name="batch_01_of_1.md")
+    assert f"\r\n{attachment}\r\n".encode() in raw
     styles = [set(map(int, sgr.split(b";"))) for sgr in re.findall(rb"\x1b\[([\d;]+)m", raw)]
     colors = set().union(*styles)
     background_codes = {*range(40, 48), *range(100, 108)}
@@ -131,7 +153,8 @@ def test_first_run_and_daily_keyboard_flow(tmp_path, columns, language, mode):
         assert {32, 33, 36, 94, 95, 96} <= colors
         assert colors & background_codes == {44}
         assert all(97 in style for style in styles if 44 in style)
-        assert 92 not in colors
+        icon, color = ("✓", 92) if clipboard_available else ("▲", 33)
+        assert f"\r\n\x1b[1;{color}m{icon}  {clipboard_status}\x1b[0m\r\n".encode() in raw
     else:
         assert colors.isdisjoint(background_codes | set(range(30, 38)) | set(range(90, 98)))
     assert json.loads((tmp_path / ".config/any2llm/config.json").read_text(encoding="utf-8")) == {

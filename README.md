@@ -2,16 +2,16 @@
 
 [![Platform compatibility](https://github.com/ahmetemreapo/any2llm/actions/workflows/platforms.yml/badge.svg)](https://github.com/ahmetemreapo/any2llm/actions/workflows/platforms.yml)
 
-Prepare documents for an AI chat from a folder on your computer. Choose the documents, then attach the files that any2llm prepares and paste the accompanying instructions. You choose what to upload.
+Turn a folder of documents and code into fewer Markdown attachments to work within your AI chat's file-count limit while keeping original PDF page numbers for citations. any2llm processes your documents locally so you can review the batches and decide what to upload.
+
+![Terminal recording showing selection of three delivery documents, followed by the Markdown attachment and prompt instructions](examples/delivery-dates-demo.gif)
 
 ## Quick install
 
-Use Python 3.11 or newer and pipx. [Install pipx](https://pipx.pypa.io/stable/how-to/install-pipx.html)
+Use Python 3.11 or newer with Git and pipx installed. [Install pipx](https://pipx.pypa.io/stable/how-to/install-pipx.html)
 
 ```sh
-git clone https://github.com/ahmetemreapo/any2llm.git
-cd any2llm
-pipx install .
+pipx install git+https://github.com/ahmetemreapo/any2llm.git
 ```
 
 If your terminal can't find `any2llm`, run `pipx ensurepath` and open a new terminal. For a manual install, use the [venv instructions](#install-from-this-source-folder).
@@ -24,11 +24,11 @@ any2llm <folder>
 
 ## Try it with three sample files
 
-![Terminal recording showing selection of three delivery documents, followed by the Markdown attachment and prompt instructions](examples/delivery-dates-demo.gif)
-
-The [delivery dates example](examples/delivery-dates/) contains a supplier offer (PDF), a delivery schedule (Excel), and a meeting note (text). After installation, run this command from the repository root.
+The delivery dates example contains a supplier offer (PDF), a delivery schedule (Excel), and a meeting note (text). After installing any2llm, clone the repository to get the sample files and run the example. [Browse the sample files](examples/delivery-dates/)
 
 ```sh
+git clone https://github.com/ahmetemreapo/any2llm.git
+cd any2llm
 any2llm examples/delivery-dates --no-open --lang en --task "List delivery dates in a table and cite the source for each date."
 ```
 
@@ -107,37 +107,57 @@ On Linux, some distributions package venv and pip separately. If creating the en
 
 ## Prepare your first chat
 
-1. Go to the folder containing your documents. On Windows, right-click inside the folder in File Explorer and choose **Open in Terminal** if available. On macOS or Linux you can open Terminal and enter `cd "/path/to/My Documents"`, using your own folder path.
-2. Run `any2llm`. On first use, choose a language, choose how to group the documents, and decide whether to open the prepared files automatically. The language menu uses your system language when supported and English otherwise. The remaining questions use your choice. Press Enter to keep the highlighted option.
-3. All candidates that pass the scan filters start selected. Press Enter to keep them all, or use the arrow keys and Space to remove individual files. With `any2llm --plain`, use numbered choices. Run `any2llm -r` to look in subfolders too. After selection, any2llm reads the selected files and reports files it cannot use.
-4. The terminal shows the number and combined size of the `batch_*.md` attachments and how tokens were counted. Attach all the named files to one message if your chat allows. If you hit its attachment limit, start with the first file. Paste the instructions into the message and send. The terminal confirms whether the instructions were copied to your clipboard. You can also copy them from `PROMPT.txt` in the output folder.
-5. After each reply, send the continuation word shown in the terminal to move to the next numbered file. Attach that file to the continuation message if you haven't uploaded it yet.
+1. **Open your folder.** Run `any2llm <folder>`, or open a terminal inside your documents folder and run `any2llm`.
+2. **Set your preferences.** On first use, choose a language, how to group the documents, and whether to open the output folder automatically. The wizard starts in your system language if supported and uses English otherwise.
+3. **Select files.** Press Enter to keep all candidates or use the arrow keys and Space to toggle individual files. Use `--plain` for numbered choices or `-r` to include subfolders. any2llm reads the selected files and reports any it cannot use.
+4. **Attach and send.** The terminal shows the path, count, and combined size of the `batch_*.md` files. Attach as many as your chat allows, starting with the first. Paste the instructions from the clipboard or copy them from `PROMPT.txt`.
+5. **Continue through the batches.** After each reply, send the continuation word shown in the terminal. Attach the next batch if you haven't uploaded it yet.
 
-Desktop sessions use Explorer on Windows, Finder on macOS, or `xdg-open` on Linux. For SSH sessions, containers and servers, use `--no-open`. The instructions are always available in `PROMPT.txt`.
-
-`--max-tokens` sets a token limit for each prepared file. any2llm counts tokens with `cl100k_base` when available and estimates one token per four characters otherwise. The terminal indicates when the estimate was used. Your chat service may count tokens differently.
-
-The terminal shows the full folder path, even when the folder cannot open automatically. The default folder is `_llm_pack` inside your documents folder. If a file at the destination cannot safely be replaced, use another folder, such as `any2llm -o chat_files`. This also applies to output made by versions that did not record which files they wrote.
+- **Output folder.** The default is `_llm_pack` inside your documents folder. Use `-o chat_files` for a different destination, including when existing output cannot safely be replaced.
+- **Headless sessions.** Use `--no-open` over SSH, in containers, or on servers.
+- **Token budget.** Use `--max-tokens` to cap each batch. The terminal shows whether counts came from `cl100k_base` or an estimate of one token per four characters. Your chat service may count differently.
 
 ## Languages
 
-The terminal interface and chat instructions support English (`en`), Mandarin Chinese in simplified script (`zh`), Hindi (`hi`), Spanish (`es`), French (`fr`), Arabic (`ar`), Bengali (`bn`), Portuguese (`pt`), Russian (`ru`), Urdu (`ur`), and Turkish (`tr`). Run `any2llm setup` to change the saved language or use `--lang CODE` for one run. For Arabic and Urdu menus, use a terminal that supports right-to-left text. Numbered menus are available with `--plain`.
+The terminal and generated chat instructions support **11 languages**.
+
+- English (`en`), Simplified Chinese (`zh`), Hindi (`hi`), Spanish (`es`), French (`fr`), Arabic (`ar`)
+- Bengali (`bn`), Portuguese (`pt`), Russian (`ru`), Urdu (`ur`), Turkish (`tr`)
+
+Run `any2llm setup` to save a language or use `--lang CODE` for one run. Use a terminal with right-to-left support for Arabic and Urdu, or use `--plain` for numbered menus.
 
 ## Privacy and security
 
-any2llm processes documents locally, including OCR. You choose which files to upload and upload them yourself. When the token vocabulary is missing from its cache, tiktoken can download it for token counting.
+- **Local processing.** Document extraction and OCR run on your machine. You choose which files to upload and upload them yourself.
+- **Token counting.** tiktoken can download its token vocabulary if it is missing from the cache.
+- **Credential warnings.** The CLI checks extracted text locally for common API key, access token, and private key formats. It shows the filename and finding type and keeps the extracted text in the output. Review every `batch_*.md` file before uploading, even if you see no warning.
 
-The CLI checks extracted text locally for common API key, access token, and private key formats. It shows the filename and finding type and keeps the extracted text in the output. Review every `batch_*.md` file before uploading, even if the CLI shows no warning. See the [security policy](SECURITY.md) for reporting guidance.
+See the [security policy](SECURITY.md) to report a vulnerability.
 
 ## What gets included
 
-any2llm extracts text from PDFs, paragraphs and tables from Word documents, text and tables from slides, and cell values or formulas from Excel sheets. Selected PDFs with some extractable text retain their physical page numbers. Pages from which no text could be extracted are reported in the terminal and marked in the pack. A PDF without any usable text is skipped. Images, audio and video stay out of the prepared files. HTML remains source text, including any CSS and JavaScript. Grouping reduces the number of attachments. Your chat service still sets its own size and attachment limits.
+| Source | What the batch keeps |
+| --- | --- |
+| PDF | Extracted text and physical page numbers. Pages without usable text are marked in the batch and reported in the terminal. PDFs with no usable text are skipped. |
+| Word and PowerPoint | Word paragraphs and tables, plus slide text and tables. |
+| Excel | Cell values or formulas. |
+| Text and code | Source text, including HTML with CSS and JavaScript. |
 
-The scan skips common environment and build directories and flags potentially sensitive filenames such as `credentials.json`, `id_rsa`, and `server.pem`. Use `--include-sensitive` to allow those filenames through the sensitive-file filter. The scan also applies simple rules from the root `.gitignore`. Add your own exclusions with `--exclude '*.log' --exclude 'private/'`. Quote globs to prevent your shell from expanding them.
+- **Scan filters.** Images, audio, video, and common environment and build directories are skipped. The scan uses simple rules from the root `.gitignore`. Add quoted patterns with `--exclude '*.log' --exclude 'private/'`.
+- **Sensitive filenames.** Files such as `credentials.json`, `id_rsa`, and `server.pem` are skipped by default. Use `--include-sensitive` to let them through the filename filter.
+- **Automatic selection.** Use `-y` to select all candidates that pass the scan filters. Without an interactive terminal, it uses saved settings or temporary defaults.
+- **Skip details.** Use `--details` for the full list of reported skips and `--help` for all options.
 
-For reported skips, the terminal explains each reason and suggests what to try. Run `any2llm --details` for the full list of reported files, or `any2llm setup` to change your preferences. Run `any2llm --help` for advanced options. Without an interactive terminal, `any2llm -y` selects all candidates that pass the scan filters and uses saved settings or temporary defaults.
+### Extraction limits
 
-Extraction accepts up to 32 MiB per source file, 500 pages per PDF, and 128 MiB of total uncompressed entries per Word, PowerPoint, or Excel archive. The CLI allows up to 120 seconds per selected file, including OCR. It skips files that exceed a limit.
+| Limit | Maximum |
+| --- | --- |
+| Source file size | 32 MiB per file |
+| PDF length | 500 pages per PDF |
+| Uncompressed Office archive size | 128 MiB per Word, PowerPoint, or Excel archive |
+| Extraction time | 120 seconds per selected file, including OCR |
+
+Files that exceed a limit are skipped. Your chat service sets its own upload limits.
 
 ### OCR for scanned PDFs
 

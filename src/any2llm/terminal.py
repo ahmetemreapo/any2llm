@@ -106,6 +106,18 @@ def display_count(count: int, msg: dict[str, str]) -> str:
     return f"{count:,}".replace(",", msg["thousands"])
 
 
+def display_size(byte_count: int, msg: dict[str, str]) -> str:
+    amount = float(byte_count)
+    unit = "B"
+    for larger_unit in ("KB", "MB", "GB", "TB"):
+        if round(amount, 1) < 1000:
+            break
+        amount /= 1000
+        unit = larger_unit
+    size = f"{amount:.1f}".removesuffix(".0").replace(".", msg["decimal"])
+    return f"{size} {unit}"
+
+
 def display_page_ranges(numbers: list[int], msg: dict[str, str]) -> str:
     ranges: list[tuple[int, int]] = []
     for number in numbers:

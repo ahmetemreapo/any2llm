@@ -5,7 +5,7 @@ from collections.abc import Sequence
 from .messages import PROMPTS
 
 
-def master_prompt(batch_names: Sequence[str], lang: str, task: str = "") -> str:
+def master_prompt(batch_names: Sequence[str], lang: str, task: str = "", *, has_ocr: bool = False) -> str:
     if lang not in PROMPTS:
         raise ValueError(f"Unsupported language: {lang}")
     text = PROMPTS[lang]
@@ -19,6 +19,10 @@ def master_prompt(batch_names: Sequence[str], lang: str, task: str = "") -> str:
         opening, text["reply_language"],
         text["attachments"].format(filenames=", ".join(batch_names)),
     ]
+    if multiple:
+        sections.append(text["upload_order"])
+    if has_ocr:
+        sections.append(text["ocr_sources"])
     if task:
         sections.extend((f"{text['task']}: {task}", text["task_evidence"]))
         if multiple:

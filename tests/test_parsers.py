@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from io import BytesIO
 from subprocess import CalledProcessError, CompletedProcess, TimeoutExpired
-from unittest.mock import Mock
+from unittest.mock import Mock, call
 from xml.etree import ElementTree as ET
 from zipfile import ZipFile
 
@@ -14,7 +14,7 @@ from pptx.util import Inches
 from pypdf import PdfWriter
 from pypdf.generic import DecodedStreamObject, DictionaryObject, NameObject
 
-from any2llm import parsers
+from any2llm import ocr, parsers
 from any2llm.parsers import ParsedFile, PdfPage, SkippedFile, parse_file
 
 
@@ -111,6 +111,49 @@ def test_pdf_distinguishes_margin_cleanup_from_missing_text(tmp_path, monkeypatc
     ))
     reader.pages = reader.pages[2:3]
     assert parse_file(path) == SkippedFile("no_pdf_text")
+
+
+def test_pdf_ocr_runs_only_after_both_text_extractors_find_nothing(tmp_path, monkeypatch):
+    path = tmp_path / "notes.pdf"
+    path.touch()
+    reader = Mock(is_encrypted=False, pages=[
+        Mock(extract_text=Mock(return_value=text))
+        for text in ("Introduction", "Page 2 of 7", "  \n", "", "par\x00ial", "", "\ufffd")
+    ])
+    fallback = Mock(side_effect=lambda _, page: "From the second extractor\n" if page == 3 else "")
+    recognize = Mock(side_effect=["A scanned paragraph.  \n\f", "  \f", "Recovered damaged page.\n"])
+    monkeypatch.setattr(parsers, "PdfReader", Mock(return_value=reader))
+    monkeypatch.setattr(parsers, "_pdftotext", fallback)
+    monkeypatch.setattr(ocr, "read_page", recognize)
+
+    parsed = parse_file(path, ocr_lang="tur+eng")
+
+    assert fallback.call_args_list == [call(path, page) for page in (3, 4, 5, 6, 7)]
+    assert recognize.call_args_list == [call(path, page, "tur+eng") for page in (4, 6, 7)]
+    assert parsed.pages == (
+        PdfPage(1, "Introduction"), PdfPage(2, ""), PdfPage(3, "From the second extractor"),
+        PdfPage(4, "A scanned paragraph.", ocr=True), PdfPage(5, "par\ufffdial", partial=True),
+        PdfPage(6, "", no_text=True), PdfPage(7, "Recovered damaged page.", ocr=True),
+    )
+
+
+def test_pdf_with_only_scanned_pages_becomes_readable_with_ocr(tmp_path, monkeypatch):
+    path = tmp_path / "scan.pdf"
+    writer = PdfWriter()
+    writer.add_blank_page(width=300, height=300)
+    writer.write(path)
+    monkeypatch.setattr(parsers, "_pdftotext", lambda *_: "")
+    recognize = Mock(return_value="Lecture notes\n")
+    monkeypatch.setattr(ocr, "read_page", recognize)
+
+    assert parse_file(path) == SkippedFile("no_pdf_text")
+    assert parse_file(path, ocr_lang="eng") == ParsedFile("PDF", "Lecture notes", (
+        PdfPage(1, "Lecture notes", ocr=True),
+    ))
+    writer.encrypt("password")
+    writer.write(path)
+    assert parse_file(path, ocr_lang="eng") == SkippedFile("encrypted")
+    recognize.assert_called_once_with(path, 1, "eng")
 
 
 def test_docx_preserves_paragraph_and_table_order(tmp_path):

@@ -41,6 +41,7 @@ def test_localized_first_run_and_daily_use(tmp_path, monkeypatch, capsys, code, 
     assert cli.main(args) == 0
     logs = capsys.readouterr().out
     msg = MESSAGES[code]
+    assert msg["tokens_estimated"] in logs
     assert f"1/3  {title}" in logs
     assert all(name in logs for name in languages.LANGUAGE_NAMES.values())
     assert asked[0] == f"[{list(languages.LANGUAGE_NAMES).index(code) + 1}] > "
@@ -60,6 +61,7 @@ def test_localized_first_run_and_daily_use(tmp_path, monkeypatch, capsys, code, 
     assert all("credentials.json" not in path.read_text(encoding="utf-8") for path in batches)
     prompt = (output / "PROMPT.txt").read_text(encoding="utf-8")
     assert reply in prompt and word in prompt
+    assert PROMPTS[code]["upload_order"] in prompt
     assert all(path.name in prompt for path in batches)
     assert "<manifest>" in prompt and "<page>" in prompt
     copy.assert_called_once_with(prompt)
@@ -72,12 +74,14 @@ def test_localized_first_run_and_daily_use(tmp_path, monkeypatch, capsys, code, 
     assert title not in daily and msg["select"] in daily and msg["paste"] in daily
     assert msg["clipboard_copied"] in daily and msg["clipboard_failed"] not in daily
     assert msg["next"] not in daily
-    assert reply in (output / "PROMPT.txt").read_text(encoding="utf-8")
+    single_prompt = (output / "PROMPT.txt").read_text(encoding="utf-8")
+    assert reply in single_prompt and PROMPTS[code]["upload_order"] not in single_prompt
 
     assert cli.main(["--help"]) == 0
     help_output = capsys.readouterr().out
     assert msg["help"] in help_output
     assert "--include-sensitive" in help_output and "--exclude GLOB" in help_output
+    assert "--ocr " in help_output and "--ocr-lang LANG" in help_output
     assert cli.main(["--max-tokens", "0"]) == 2
     assert msg["invalid_limit"] in capsys.readouterr().err
 
@@ -104,10 +108,14 @@ def test_every_catalog_has_the_same_messages_and_placeholders():
         catalog = PROMPTS[code]
         single = master_prompt(["first.md"], code, task)
         multi = master_prompt(["first.md", "second.md"], code, task)
+        with_ocr = master_prompt(["first.md", "second.md"], code, task, has_ocr=True)
         assert catalog["task_single"].format(first="first.md") in single
         assert catalog["task_multi"].format(first="first.md", continue_word=catalog["continue"]) in multi
         assert catalog["task_evidence"] in single and catalog["task_evidence"] in multi
         assert catalog["task_final"] in multi
+        assert catalog["upload_order"] in multi and catalog["upload_order"] not in single
+        assert catalog["ocr_sources"] in with_ocr and catalog["ocr_sources"] not in multi
+        assert 'extraction="ocr"' in catalog["ocr_sources"]
 
 
 @pytest.mark.parametrize(("environment", "platform_locale", "expected"), [
@@ -152,3 +160,11 @@ def test_wizard_changes_language_immediately(tmp_path, monkeypatch, capsys, loca
 ])
 def test_locale_specific_count_format(code, formatted):
     assert terminal.display_count(1234567, MESSAGES[code]) == formatted
+
+
+@pytest.mark.parametrize(("code", "byte_count", "formatted"), [
+    ("en", 999, "999 B"), ("en", 1000, "1 KB"), ("en", 830_000, "830 KB"),
+    ("en", 999_999, "1 MB"), ("tr", 1_250_000, "1,2 MB"), ("ar", 1_750_000, "1٫8 MB"),
+])
+def test_locale_specific_attachment_size(code, byte_count, formatted):
+    assert terminal.display_size(byte_count, MESSAGES[code]) == formatted

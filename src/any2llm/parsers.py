@@ -20,6 +20,7 @@ from pptx import Presentation
 from pptx.enum.shapes import MSO_SHAPE_TYPE
 from pypdf import PdfReader
 
+from . import ocr
 from .cleaner import clean_pages, clean_text
 
 _CONTROL = re.compile(r"[\x00-\x08\x0e-\x1f\x7f-\x9f]")
@@ -43,6 +44,7 @@ class PdfPage:
     text: str
     partial: bool = False
     no_text: bool = False
+    ocr: bool = False
 
 
 @dataclass(frozen=True)
@@ -120,7 +122,11 @@ def _damaged_pdf_text(text: str) -> bool:
     return bool(_CONTROL.search(text) or "\ufffd" in text)
 
 
-def _pdf(stream: BinaryIO, path: Path) -> ParsedFile | SkippedFile:
+def _usable_pdf_text(text: str) -> bool:
+    return bool(text.replace("\ufffd", "").strip())
+
+
+def _pdf(stream: BinaryIO, path: Path, ocr_lang: str | None) -> ParsedFile | SkippedFile:
     reader = PdfReader(stream, strict=True)
     if reader.is_encrypted:
         return SkippedFile("encrypted")
@@ -132,25 +138,31 @@ def _pdf(stream: BinaryIO, path: Path) -> ParsedFile | SkippedFile:
         except Exception:
             # A damaged page can fail independently of the rest of the PDF.
             text = ""
+            damaged = True
         else:
-            if not _damaged_pdf_text(text):
-                texts.append(text)
-                continue
-        recovered = _pdftotext(path, number)
-        if recovered.strip() and not _damaged_pdf_text(recovered):
-            texts.append(recovered)
-        else:
-            partial.add(number)
-            texts.append(_CONTROL.sub("\ufffd", text or recovered))
+            damaged = _damaged_pdf_text(text)
+        if damaged or (ocr_lang and not _usable_pdf_text(text)):
+            recovered = _pdftotext(path, number)
+            if _usable_pdf_text(recovered) and not _damaged_pdf_text(recovered):
+                text = recovered
+            elif damaged:
+                partial.add(number)
+                text = _CONTROL.sub("\ufffd", text or recovered)
+        texts.append(text)
 
-    pages = tuple(
-        PdfPage(number, cleaned, number in partial, not raw.replace("\ufffd", "").strip())
-        for number, (raw, cleaned) in enumerate(zip(texts, clean_pages(texts), strict=False), 1)
-    )
+    pages = []
+    for number, (raw, cleaned) in enumerate(zip(texts, clean_pages(texts), strict=False), 1):
+        no_text = not _usable_pdf_text(raw)
+        if no_text and ocr_lang:
+            recognized = ocr.read_page(path, number, ocr_lang)
+            if _usable_pdf_text(recognized) and not _damaged_pdf_text(recognized):
+                pages.append(PdfPage(number, clean_text(recognized), ocr=True))
+                continue
+        pages.append(PdfPage(number, cleaned, number in partial, no_text))
     text = "\n\n".join(page.text for page in pages if page.text)
-    if not text.replace("\ufffd", "").strip():
+    if not _usable_pdf_text(text):
         return SkippedFile("invalid" if partial else "no_pdf_text")
-    return ParsedFile("PDF", text, pages)
+    return ParsedFile("PDF", text, tuple(pages))
 
 
 def _markdown_table(rows: Iterable[Iterable[object]]) -> str:
@@ -253,7 +265,7 @@ def _xlsx(stream: BinaryIO) -> str:
 _OFFICE = {".docx": _docx, ".pptx": _pptx, ".xlsx": _xlsx}
 
 
-def parse_file(path: Path) -> ParsedFile | SkippedFile:
+def parse_file(path: Path, *, ocr_lang: str | None = None) -> ParsedFile | SkippedFile:
     """Parse one file, isolating malformed documents and filesystem errors."""
     path = Path(path)
     suffix = path.suffix.lower()
@@ -269,7 +281,7 @@ def parse_file(path: Path) -> ParsedFile | SkippedFile:
     try:
         with path.open("rb") as stream:
             if suffix == ".pdf":
-                return _pdf(stream, path)
+                return _pdf(stream, path, ocr_lang)
             if suffix in _OFFICE:
                 if stream.read(8) == b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1":
                     # Password-protected Office packages use a compound file container.

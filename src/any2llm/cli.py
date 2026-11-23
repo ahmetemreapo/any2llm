@@ -10,15 +10,16 @@ from collections import Counter
 from collections.abc import Mapping
 from pathlib import Path
 
+from . import ocr, tokenizer
 from .clipboard import copy_prompt
 from .config import Settings, load_config, save_config, setup
 from .languages import LANGUAGE_NAMES, system_language
 from .messages import MESSAGES, help_text
 from .output import OutputBusy, OutputConflict, write_pack
-from .packer import build_batches
+from .packer import PRESETS, build_batches
 from .prompts import master_prompt
 from .scanner import scan_folder
-from .terminal import Terminal, display_count, display_page_ranges, display_path, select_files
+from .terminal import Terminal, display_count, display_page_ranges, display_path, display_size, select_files
 
 # Older --ui-lang values remain accepted for command-line compatibility.
 _LEGACY_LANGUAGES = (*LANGUAGE_NAMES, "id")
@@ -39,6 +40,8 @@ def _arguments(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--max-tokens", type=int)
     parser.add_argument("--lang", choices=LANGUAGE_NAMES)
     parser.add_argument("--task", default="")
+    parser.add_argument("--ocr", action="store_true")
+    parser.add_argument("--ocr-lang", metavar="LANG")
     parser.add_argument("--config", action="store_true")
     parser.add_argument("--no-open", action="store_true")
     parser.add_argument("--plain", action="store_true")
@@ -160,6 +163,12 @@ def _pack(args: argparse.Namespace, settings: Settings, lang: str, screen: Termi
     screen.section(f'{msg["scanning"]}…', "bold cyan", icon="⌕")
     screen.line(f'{msg["folder"]}: {display_path(folder)}', flush=True)
     logging.getLogger("pypdf").setLevel(logging.CRITICAL)
+    ocr_lang = args.ocr_lang
+    if args.ocr and ocr_lang is None:
+        ocr_lang = "eng"
+    if ocr_lang is not None and (error := ocr.setup_error(ocr_lang)):
+        print(msg[error].format(lang=display_path(ocr_lang)), file=sys.stderr)
+        ocr_lang = None
     examined = 0
 
     def on_file() -> None:
@@ -172,7 +181,7 @@ def _pack(args: argparse.Namespace, settings: Settings, lang: str, screen: Termi
         result = scan_folder(
             folder, args.recursive, output_dir=output_dir,
             on_file=on_file if screen.is_terminal else None,
-            include_sensitive=args.include_sensitive, exclude=args.exclude,
+            include_sensitive=args.include_sensitive, exclude=args.exclude, ocr_lang=ocr_lang,
         )
     except OSError as exc:
         key = {
@@ -201,11 +210,10 @@ def _pack(args: argparse.Namespace, settings: Settings, lang: str, screen: Termi
     except ValueError:
         print(msg["limit_error"], file=sys.stderr)
         return 1
-    batches = list(documents)
-    prompt = master_prompt(batches, lang, args.task)
-    documents["PROMPT.txt"] = prompt
+    has_ocr = any(page.ocr for document in documents_to_pack.values() for page in document.pages)
+    prompt = master_prompt(list(documents), lang, args.task, has_ocr=has_ocr)
     try:
-        write_pack(output_dir, documents)
+        write_pack(output_dir, {**documents, "PROMPT.txt": prompt})
     except OSError as exc:
         key = "write_error"
         if isinstance(exc, OutputBusy):
@@ -225,8 +233,13 @@ def _pack(args: argparse.Namespace, settings: Settings, lang: str, screen: Termi
         if missing:
             warning = msg["no_page_text"].format(pages=display_page_ranges(missing, msg))
             print(f"  {display_path(path)} — {warning}")
+        recognized = [page.number for page in document.pages if page.ocr]
+        if recognized:
+            note = msg["ocr_pages"].format(pages=display_page_ranges(recognized, msg))
+            print(f"  {display_path(path)} — {note}")
     copied = copy_prompt(prompt)
-    _handoff(msg, output_dir, len(selected), batches, copied, screen)
+    limited = args.max_tokens is not None or PRESETS[settings.preset] is not None
+    _handoff(msg, output_dir, len(selected), documents, copied, screen, limited=limited)
     if settings.auto_open and not args.no_open and _interactive():
         _open_folder(output_dir)
     return 0
@@ -255,13 +268,21 @@ def _report_skipped(
 
 
 def _handoff(
-    msg: dict[str, str], folder: Path, selected: int, batches: list[str], copied: bool, screen: Terminal,
+    msg: dict[str, str], folder: Path, selected: int, documents: Mapping[str, str],
+    copied: bool, screen: Terminal, *, limited: bool,
 ) -> None:
+    batches = list(documents)
     count = len(batches)
-    label_count = display_count(count, msg)
-    screen.section(
-        msg["ready"].format(selected=display_count(selected, msg), batches=label_count), "bold green", icon="✓",
+    # Match write_pack's UTF-8 encoding and include only the prepared attachments.
+    size = sum(len(document.encode("utf-8")) for document in documents.values())
+    token_method = "tokens_unlimited"
+    if limited:
+        token_method = "tokens_estimated" if tokenizer.get_encoding() is None else "tokens_cl100k"
+    summary = msg["ready"].format(
+        selected=display_count(selected, msg), batches=display_count(count, msg),
+        size=display_size(size, msg), tokens=msg[token_method],
     )
+    screen.section(summary, "bold green", icon="✓")
     screen.line(f'{msg["folder"]}: {display_path(folder.resolve())}')
     if copied:
         screen.section(msg["clipboard_copied"], "bold bright_green", icon="✓")

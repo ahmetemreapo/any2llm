@@ -46,7 +46,7 @@ def test_sensitive_files_are_not_parsed_without_opt_in(tmp_path, monkeypatch, na
     result = scan_folder(tmp_path, recursive=True, include_sensitive=True)
     assert result.readable == [relative]
     assert not result.skipped
-    parse.assert_called_once_with(path.resolve())
+    parse.assert_called_once_with(path.resolve(), ocr_lang=None)
 
 
 def test_root_gitignore_matches_simple_git_patterns(tmp_path):

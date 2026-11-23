@@ -5,8 +5,8 @@ from xml.etree import ElementTree
 
 import pytest
 
-from any2llm import cli, config, terminal, tokenizer
-from any2llm.messages import MESSAGES
+from any2llm import cli, config, ocr, parsers, terminal, tokenizer
+from any2llm.messages import MESSAGES, PROMPTS
 from any2llm.output import write_pack
 
 
@@ -153,7 +153,7 @@ def test_folder_launcher_is_quiet_and_handles_missing_command(tmp_path, monkeypa
 def test_handoff(tmp_path, monkeypatch, capsys, multiple, copied, auto_open):
     config.save_config(config.Settings(auto_open=auto_open))
     monkeypatch.setattr(tokenizer, "get_encoding", lambda: None)
-    (tmp_path / "notes.txt").write_text("A long line with a few words\n" * 40)
+    (tmp_path / "notes.txt").write_text("A long line with the word ‘örnek’\n" * 40, encoding="utf-8")
     copy = Mock(return_value=copied)
     opener = Mock()
     monkeypatch.setattr(cli, "copy_prompt", copy)
@@ -166,9 +166,11 @@ def test_handoff(tmp_path, monkeypatch, capsys, multiple, copied, auto_open):
     handoff = capsys.readouterr().out
     batches = sorted(output.glob("batch*.md"))
     assert (len(batches) > 1) == multiple
-    assert f"Files to attach: {len(batches)}" in handoff
-    assert str(output) in handoff and batches[0].name in handoff
     msg = MESSAGES["en"]
+    size = terminal.display_size(sum(batch.stat().st_size for batch in batches), msg)
+    summary = msg["ready"].format(selected=1, batches=len(batches), size=size, tokens=msg["tokens_estimated"])
+    assert summary in handoff
+    assert str(output) in handoff and batches[0].name in handoff
     assert (msg["next"] in handoff) == multiple
     assert ("Open PROMPT.txt" in handoff) == (not copied)
     assert (msg["paste"] in handoff) == copied
@@ -177,6 +179,23 @@ def test_handoff(tmp_path, monkeypatch, capsys, multiple, copied, auto_open):
     assert msg["clipboard_failed" if copied else "clipboard_copied"] not in handoff
     copy.assert_called_once_with((output / "PROMPT.txt").read_text(encoding="utf-8"))
     assert opener.call_count == int(auto_open)
+
+
+@pytest.mark.parametrize("override", [False, True])
+def test_handoff_shows_token_method_for_single_file_preset(tmp_path, monkeypatch, capsys, override):
+    config.save_config(config.Settings(preset="Single File", auto_open=False))
+    (tmp_path / "notes.txt").write_text("Example")
+    get_encoding = Mock(return_value=Mock(encode_ordinary=lambda text: [1]))
+    monkeypatch.setattr(tokenizer, "get_encoding", get_encoding)
+    args = [str(tmp_path), "-y", "--lang", "en"]
+    if override:
+        args.extend(["--max-tokens", "100"])
+
+    assert cli.main(args) == 0
+    msg = MESSAGES["en"]
+    key = "tokens_cl100k" if override else "tokens_unlimited"
+    assert msg[key] in capsys.readouterr().out
+    assert get_encoding.called is override
 
 
 def test_noninteractive_selection_and_setup_need_a_terminal(tmp_path, monkeypatch, capsys):
@@ -264,9 +283,9 @@ def test_skip_details_progress_and_partial_pdf(tmp_path, monkeypatch, capsys):
     from any2llm import scanner
 
     parse_file = scanner.parse_file
-    monkeypatch.setattr(scanner, "parse_file", lambda path: (
+    monkeypatch.setattr(scanner, "parse_file", lambda path, **kwargs: (
         ParsedFile("PDF", "Text", (PdfPage(17, "Text", partial=True),))
-        if path.suffix == ".pdf" else parse_file(path)
+        if path.suffix == ".pdf" else parse_file(path, **kwargs)
     ))
     monkeypatch.setattr(cli.sys.stdout, "isatty", lambda: True)
     assert cli.main([str(tmp_path), "-y", "--no-open"]) == 0
@@ -281,24 +300,55 @@ def test_skip_details_progress_and_partial_pdf(tmp_path, monkeypatch, capsys):
     assert "video-25.mp4" in capsys.readouterr().out
 
 
-def test_image_only_pdf_page_is_reported_and_kept_in_pack(tmp_path, monkeypatch, capsys):
+@pytest.mark.parametrize(("flags", "ocr_lang", "error"), [
+    ([], None, None),
+    (["--ocr"], "eng", None),
+    (["--ocr-lang", "tur+eng"], "tur+eng", None),
+    (["--ocr"], "eng", "ocr_tools_missing"),
+    (["--ocr-lang", "tur"], "tur", "ocr_languages_missing"),
+])
+def test_image_only_pdf_page_is_reported_and_kept_in_pack(tmp_path, monkeypatch, capsys, flags, ocr_lang, error):
     sample = Path(__file__).resolve().parents[1] / "examples/delivery-dates/supplier-offer.pdf"
     copyfile(sample, tmp_path / sample.name)
     copyfile(sample, tmp_path / "unselected.pdf")
     monkeypatch.setattr(cli, "select_files", lambda *_args, **_kwargs: [Path(sample.name)])
     monkeypatch.setattr(tokenizer, "get_encoding", lambda: None)
+    monkeypatch.setattr(parsers, "_pdftotext", lambda *_: "")
+    setup = Mock(return_value=error)
+    recognize = Mock(return_value="Confirm freight costs separately.\n")
+    monkeypatch.setattr(ocr, "setup_error", setup)
+    monkeypatch.setattr(ocr, "read_page", recognize)
 
-    assert cli.main([str(tmp_path), "--lang", "en", "--no-open"]) == 0
-    logs = capsys.readouterr().out
-    assert "supplier-offer.pdf — PDF pages with no extractable text: 2" in logs
-    assert "unselected.pdf" not in logs
-    batch = (tmp_path / "_llm_pack/batch_01_of_1.md").read_text(encoding="utf-8")
+    assert cli.main([str(tmp_path), "--lang", "en", "--no-open", *flags]) == 0
+    captured = capsys.readouterr()
+    if ocr_lang is None:
+        setup.assert_not_called()
+    else:
+        setup.assert_called_once_with(ocr_lang)
+    if error:
+        assert MESSAGES["en"][error].format(lang=ocr_lang) in captured.err
+    assert "unselected.pdf" not in captured.out
+    directory = tmp_path / "_llm_pack"
+    batch = (directory / "batch_01_of_1.md").read_text(encoding="utf-8")
+    prompt = (directory / "PROMPT.txt").read_text(encoding="utf-8")
     elements = ElementTree.fromstring(f"<pack>{batch}</pack>").findall("file/page")
     assert [page.get("number") for page in elements] == ["1", "2", "3"]
-    assert elements[1].get("extraction") == "no-extractable-text"
-    assert elements[1].text is None
     assert "Pilot shipment" in elements[0].text
     assert "Main shipment" in elements[2].text
+    assert all("extraction" not in elements[index].attrib for index in (0, 2))
+    if ocr_lang and not error:
+        assert recognize.call_count == 2
+        assert all(call.args[1:] == (2, ocr_lang) for call in recognize.call_args_list)
+        assert "supplier-offer.pdf — PDF pages read with OCR: 2" in captured.out
+        assert elements[1].get("extraction") == "ocr"
+        assert elements[1].text == "Confirm freight costs separately."
+        assert PROMPTS["en"]["ocr_sources"] in prompt
+    else:
+        recognize.assert_not_called()
+        assert "supplier-offer.pdf — PDF pages with no extractable text: 2" in captured.out
+        assert elements[1].get("extraction") == "no-extractable-text"
+        assert elements[1].text is None
+        assert PROMPTS["en"]["ocr_sources"] not in prompt
 
 
 def test_pdf_warning_groups_page_ranges(tmp_path, monkeypatch, capsys):
@@ -307,7 +357,7 @@ def test_pdf_warning_groups_page_ranges(tmp_path, monkeypatch, capsys):
 
     (tmp_path / "report.pdf").touch()
     pages = (PdfPage(1, "Text"), *(PdfPage(n, "", no_text=True) for n in (2, 3, 4, 6, 8, 9)))
-    monkeypatch.setattr(scanner, "parse_file", lambda _: ParsedFile("PDF", "Text", pages))
+    monkeypatch.setattr(scanner, "parse_file", lambda _, **_kwargs: ParsedFile("PDF", "Text", pages))
     assert cli.main([str(tmp_path), "-y", "--lang", "tr", "--no-open"]) == 0
     logs = capsys.readouterr().out
     assert "report.pdf — Şu PDF sayfalarından metin alınamadı: 2–4, 6, 8–9" in logs

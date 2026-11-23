@@ -35,6 +35,7 @@ class _PageStart:
     number: int
     partial: bool
     no_text: bool
+    ocr: bool
 
 
 @dataclass(frozen=True)
@@ -74,7 +75,9 @@ def _render_content(part: _Part) -> str:
         attrs = {"number": str(page.number)}
         if page.partial:
             attrs["status"] = "partial"
-        if page.no_text:
+        if page.ocr:
+            attrs["extraction"] = "ocr"
+        elif page.no_text:
             attrs["extraction"] = "no-extractable-text"
         content = part.text[max(part.start, page.offset):min(end, next_offset)]
         pages.append(_start_tag("page", attrs) + _raw_content(content.removesuffix(_EMPTY_PAGE)) + "</page>")
@@ -186,7 +189,7 @@ def _pack_file(file_id: str, path: Path, parsed: ParsedFile) -> _Part:
     for page in parsed.pages:
         # An empty page needs one position of its own when splitting a PDF.
         text = _utf8_text(page.text) or _EMPTY_PAGE
-        pages.append(_PageStart(offset, page.number, page.partial, page.no_text))
+        pages.append(_PageStart(offset, page.number, page.partial, page.no_text, page.ocr))
         texts.append(text)
         offset += len(text)
     return _Part(file_id, name, file_type, "".join(texts), pages=tuple(pages))

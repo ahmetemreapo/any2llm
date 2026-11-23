@@ -118,11 +118,14 @@ def test_exact_limit_and_failed_repack_preserve_output(tmp_path):
     assert path.read_text() == original
 
 
-def test_split_pdf_keeps_missing_pages_and_repeats_partial_status(tmp_path):
+@pytest.mark.parametrize(("flags", "marker"), [
+    ({"partial": True}, {"status": "partial"}), ({"ocr": True}, {"extraction": "ocr"}),
+])
+def test_split_pdf_keeps_missing_pages_and_repeats_page_marker(tmp_path, flags, marker):
     body = "A & B < C </page> </file>\n" * 100 + "\0"
     pages = (
         PdfPage(1, "Introduction"), PdfPage(2, "", no_text=True),
-        PdfPage(3, body, partial=True), PdfPage(4, "Results"),
+        PdfPage(3, body, **flags), PdfPage(4, "Results"),
     )
     files = {Path("report.pdf"): ParsedFile("PDF", f"Introduction\n\n{body}\n\nResults", pages)}
     docs = read_batches(write_batches(files, tmp_path, max_tokens=100), limit=100)
@@ -133,7 +136,7 @@ def test_split_pdf_keeps_missing_pages_and_repeats_partial_status(tmp_path):
     assert elements[-1].attrib == {"number": "4"}
     middle = elements[2:-1]
     assert len(middle) > 1
-    assert all(page.attrib == {"number": "3", "status": "partial"} for page in middle)
+    assert all(page.attrib == {"number": "3", **marker} for page in middle)
     assert "".join(decode_content(page.text) for page in middle) == body
 
 

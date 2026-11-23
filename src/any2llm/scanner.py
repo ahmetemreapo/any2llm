@@ -47,7 +47,7 @@ def _windows_entry(entry: os.DirEntry) -> str | None:
 def scan_folder(
     root: Path, recursive: bool = False, *,
     output_dir: Path | None = None, on_file: Callable[[], None] | None = None,
-    include_sensitive: bool = False, exclude: Iterable[str] = (),
+    include_sensitive: bool = False, exclude: Iterable[str] = (), ocr_lang: str | None = None,
 ) -> ScanResult:
     """Scan regular files. Raise OSError if the root cannot be listed."""
     root = Path(os.path.realpath(root))
@@ -110,7 +110,7 @@ def scan_folder(
                         ):
                             result.skipped[relative] = "sensitive"
                             continue
-                        parsed = parse_file(path)
+                        parsed = parse_file(path, ocr_lang=ocr_lang)
                         if on_file is not None:
                             on_file()
                         if isinstance(parsed, SkippedFile):

@@ -77,34 +77,6 @@ Code and HTML stay readable inside file and page blocks. For example, `a < b && 
 
 </details>
 
-## Install from this source folder
-
-Use Python 3.11 or newer with pip and venv. Open a terminal in the source folder containing `pyproject.toml`. These commands install into a private environment without administrator access.
-
-**Windows PowerShell**
-
-```powershell
-py -3 -m venv "$env:USERPROFILE\.any2llm-env"
-& "$env:USERPROFILE\.any2llm-env\Scripts\python.exe" -m pip install .
-$env:Path = "$env:USERPROFILE\.any2llm-env\Scripts;$env:Path"
-any2llm --help
-```
-
-Repeat the `$env:Path` line in a new PowerShell window, or add that Scripts folder to your user PATH once. If you installed Python without the `py` launcher, use `python` in the first command. The setup works without running PowerShell activation scripts.
-
-**macOS and Linux** (sh, bash or zsh)
-
-```sh
-python3 -m venv "$HOME/.any2llm-env"
-"$HOME/.any2llm-env/bin/python" -m pip install .
-. "$HOME/.any2llm-env/bin/activate"
-any2llm --help
-```
-
-Use the activation line in each new terminal. In fish, use `source ~/.any2llm-env/bin/activate.fish`. If the command is missing from PATH, you can always run the environment’s Python with `-m any2llm` from your documents folder.
-
-On Linux, some distributions package venv and pip separately. If creating the environment fails, install your distribution’s Python venv and pip packages. Availability of prebuilt dependencies depends on your Python version, processor and C library. On platforms where pip needs to compile them, install the compiler and development packages requested by the build (for example Rust for tiktoken, or libxml2 and libxslt headers for lxml).
-
 ## Prepare your first chat
 
 1. **Open your folder.** Run `any2llm <folder>`, or open a terminal inside your documents folder and run `any2llm`.
@@ -161,11 +133,40 @@ Files that exceed a limit are skipped. Your chat service sets its own upload lim
 
 ### OCR for scanned PDFs
 
-Install Poppler (`pdftoppm`) and Tesseract with the language data for your documents. Put their installation directories on `PATH` as absolute paths. any2llm skips the current working directory when looking for these tools and for `pdftotext`, which can repair damaged PDF text with or without OCR. Use `tesseract --list-langs` to see which languages are installed. [Tesseract installation guide](https://tesseract-ocr.github.io/tessdoc/Installation.html)
+- **Tools.** Install Poppler (`pdftoppm`) and Tesseract with the language data you need. Add their installation directories to `PATH` using absolute paths. any2llm skips the current working directory when looking for these tools. [Tesseract installation guide](https://tesseract-ocr.github.io/tessdoc/Installation.html)
+- **Language.** `--ocr` uses English (`eng`). Use `--ocr-lang` to choose one or more installed languages independently of the terminal language. Run `tesseract --list-langs` to see which languages are available.
+- **Pages and results.** OCR runs locally on PDF pages where text extraction found no usable text. The batch keeps the original page number and marks recognized text with `extraction="ocr"`. The terminal lists pages that still have no usable text. Check important names and numbers against the original page.
+- **Text recovery.** Poppler's `pdftotext` can repair damaged PDF text with or without OCR, using the same `PATH` rules.
 
 ```sh
 any2llm ./lectures --ocr
 any2llm ./lectures --ocr-lang tur+eng
 ```
 
-`--ocr` uses English (`eng`). `--ocr-lang` enables OCR with the specified installed languages, independently of the terminal language. OCR runs locally and only on PDF pages where text extraction found no usable text. The batch keeps the original page number and marks recognized text with `extraction="ocr"`. The terminal lists any pages that still have no extractable text. Check names and numbers from OCR against the original page when they matter.
+## Install from this source folder
+
+Use Python 3.11 or newer with pip and venv. Open a terminal in the source folder containing `pyproject.toml`. These commands install into a private environment without administrator access.
+
+**Windows PowerShell**
+
+```powershell
+py -3 -m venv "$env:USERPROFILE\.any2llm-env"
+& "$env:USERPROFILE\.any2llm-env\Scripts\python.exe" -m pip install .
+$env:Path = "$env:USERPROFILE\.any2llm-env\Scripts;$env:Path"
+any2llm --help
+```
+
+Repeat the `$env:Path` line in a new PowerShell window, or add that Scripts folder to your user PATH once. If you installed Python without the `py` launcher, use `python` in the first command. The setup works without running PowerShell activation scripts.
+
+**macOS and Linux** (sh, bash or zsh)
+
+```sh
+python3 -m venv "$HOME/.any2llm-env"
+"$HOME/.any2llm-env/bin/python" -m pip install .
+. "$HOME/.any2llm-env/bin/activate"
+any2llm --help
+```
+
+Use the activation line in each new terminal. In fish, use `source ~/.any2llm-env/bin/activate.fish`. If the command is missing from PATH, you can always run the environment’s Python with `-m any2llm` from your documents folder.
+
+On Linux, some distributions package venv and pip separately. If creating the environment fails, install your distribution’s Python venv and pip packages. Availability of prebuilt dependencies depends on your Python version, processor and C library. On platforms where pip needs to compile them, install the compiler and development packages requested by the build (for example Rust for tiktoken, or libxml2 and libxslt headers for lxml).

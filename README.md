@@ -1,16 +1,26 @@
 # any2llm
 
+[![Platform compatibility](https://github.com/ahmetemreapo/any2llm/actions/workflows/platforms.yml/badge.svg)](https://github.com/ahmetemreapo/any2llm/actions/workflows/platforms.yml)
+
 Prepare documents for an AI chat from a folder on your computer. Choose the documents, then attach the files that any2llm prepares and paste the accompanying instructions. You choose what to upload.
 
 ## Quick install
 
-With Python 3.11 or newer and pipx installed, run this from the root of your local copy of the repository. [Install pipx](https://pipx.pypa.io/stable/how-to/install-pipx.html)
+Use Python 3.11 or newer and pipx. [Install pipx](https://pipx.pypa.io/stable/how-to/install-pipx.html)
 
 ```sh
+git clone https://github.com/ahmetemreapo/any2llm.git
+cd any2llm
 pipx install .
 ```
 
 If your terminal can't find `any2llm`, run `pipx ensurepath` and open a new terminal. For a manual install, use the [venv instructions](#install-from-this-source-folder).
+
+Replace `<folder>` with the path to your documents. Quote paths that contain spaces.
+
+```sh
+any2llm <folder>
+```
 
 ## Try it with three sample files
 
@@ -112,6 +122,12 @@ The terminal shows the full folder path, even when the folder cannot open automa
 ## Languages
 
 The terminal interface and chat instructions support English (`en`), Mandarin Chinese in simplified script (`zh`), Hindi (`hi`), Spanish (`es`), French (`fr`), Arabic (`ar`), Bengali (`bn`), Portuguese (`pt`), Russian (`ru`), Urdu (`ur`), and Turkish (`tr`). Run `any2llm setup` to change the saved language or use `--lang CODE` for one run. For Arabic and Urdu menus, use a terminal that supports right-to-left text. Numbered menus are available with `--plain`.
+
+## Privacy and security
+
+any2llm processes documents locally, including OCR. You choose which files to upload and upload them yourself. When the token vocabulary is missing from its cache, tiktoken can download it for token counting.
+
+The CLI checks extracted text locally for common API key, access token, and private key formats. It shows the filename and finding type and keeps the extracted text in the output. Review every `batch_*.md` file before uploading, even if the CLI shows no warning. See the [security policy](SECURITY.md) for reporting guidance.
 
 ## What gets included
 

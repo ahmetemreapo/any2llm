@@ -12,10 +12,10 @@ any2llm bir klasördeki PDF, Word, PowerPoint, Excel, metin ve kod dosyalarını
 
 ## Kurulum
 
-Python 3.11 veya üstü, Git ve [pipx](https://pipx.pypa.io/stable/how-to/install-pipx.html) gerekir.
+Python 3.11 veya üstü ve [pipx](https://pipx.pypa.io/stable/how-to/install-pipx.html) gerekir.
 
 ```sh
-pipx install git+https://github.com/ahmetemreapo/any2llm.git@main
+pipx install any2llm
 ```
 
 [Windows, macOS ve Linux için kurulum yardımı](docs/install.md)

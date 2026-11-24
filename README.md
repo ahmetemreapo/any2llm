@@ -12,10 +12,10 @@ any2llm turns a folder of PDF, Word, PowerPoint, Excel, text, and code files int
 
 ## Install
 
-Requires Python 3.11 or newer, Git, and [pipx](https://pipx.pypa.io/stable/how-to/install-pipx.html).
+Requires Python 3.11 or newer and [pipx](https://pipx.pypa.io/stable/how-to/install-pipx.html).
 
 ```sh
-pipx install git+https://github.com/ahmetemreapo/any2llm.git@main
+pipx install any2llm
 ```
 
 [Installation help for Windows, macOS, and Linux](docs/install.md)

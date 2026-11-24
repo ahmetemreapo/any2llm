@@ -1,6 +1,14 @@
 # Install any2llm
 
-Use Python 3.11 or newer. The [quick install](../README.md#install) uses Git and pipx. If an existing pipx installation works but your shell cannot find `any2llm`, run `pipx ensurepath` and open a new terminal.
+Use Python 3.11 or newer. The [quick install](../README.md#install) uses pipx to install from PyPI. If an existing pipx installation works but your shell cannot find `any2llm`, run `pipx ensurepath` and open a new terminal.
+
+## Install from GitHub
+
+With Git and pipx installed, use this command to install the current `main` branch from source.
+
+```sh
+pipx install git+https://github.com/ahmetemreapo/any2llm.git@main
+```
 
 ## Install from a local checkout
 

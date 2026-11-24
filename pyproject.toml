@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "any2llm"
 version = "0.1.0"
-description = "Select folder contents for LLM processing"
+description = "Bundle documents into fewer Markdown attachments for AI chats while keeping original PDF page numbers"
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
@@ -40,7 +40,7 @@ any2llm = "any2llm.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-any2llm = ["locales/*.json"]
+any2llm = ["locales/*.json", "demo_assets/*/*.pdf", "demo_assets/*/*.docx", "demo_assets/*/*.pptx", "demo_assets/*/*.xlsx"]
 
 [tool.ruff]
 line-length = 120

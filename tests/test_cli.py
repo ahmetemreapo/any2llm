@@ -17,6 +17,46 @@ def configured(monkeypatch):
     monkeypatch.setattr(cli, "copy_prompt", Mock(return_value=True))
 
 
+@pytest.mark.parametrize(("lang", "pdf", "count_text"), [
+    ("en", "research-designs.pdf", "Selected documents: 4"),
+    ("tr", "araştırma-desenleri.pdf", "Seçilen belge sayısı: 4"),
+])
+def test_demo_uses_bundled_sources_and_preserves_previous_runs(tmp_path, monkeypatch, capsys, lang, pdf, count_text):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(cli, "_interactive", lambda: False)
+    saved = config.Settings(lang="fr", preset="High Detail", auto_open=False)
+    config.save_config(saved)
+
+    args = ["demo", "--lang", lang, "--no-open"]
+    assert cli.main(args) == 0
+    first, = tmp_path.glob(f"any2llm-demo-{lang}-*")
+    batch = first / "batch_01_of_1.md"
+    assert pdf in batch.read_text(encoding="utf-8")
+    prompt = (first / "PROMPT.txt").read_text(encoding="utf-8")
+    assert PROMPTS[lang]["reply_language"] in prompt
+    assert cli.demo.QUESTIONS[lang] in prompt
+    logs = capsys.readouterr().out
+    assert count_text in logs and str(first) in logs and batch.name in logs
+
+    batch.write_text("User edit", encoding="utf-8")
+    assert cli.main(args) == 0
+    second, = set(tmp_path.glob(f"any2llm-demo-{lang}-*")) - {first}
+    assert (second / batch.name).is_file()
+    assert batch.read_text(encoding="utf-8") == "User edit"
+    assert config.load_config() == saved
+
+
+def test_dot_demo_is_a_regular_directory(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(tokenizer, "get_encoding", lambda: None)
+    folder = tmp_path / "demo"
+    folder.mkdir()
+    (folder / "notes.txt").write_text("My own file", encoding="utf-8")
+    assert cli.main(["./demo", "-y", "--no-open"]) == 0
+    pack = folder / "_llm_pack" / "batch_01_of_1.md"
+    assert "My own file" in pack.read_text(encoding="utf-8")
+
+
 def test_checkbox_uses_file_names_and_reports_skips(tmp_path, monkeypatch, capsys):
     (tmp_path / "notes.txt").write_text("Hello!           \n\n")
     (tmp_path / "broken.xlsx").write_bytes(b"truncated")
@@ -303,7 +343,7 @@ def test_skip_details_progress_and_partial_pdf(tmp_path, monkeypatch, capsys):
     assert "z-workbook.xls" not in logs
     assert "file type we can’t read — Export the file to a supported format" in logs
     assert "image, video — Save the text from the media or a transcript as a .txt file" in logs
-    assert "report.pdf — 1 PDF page" in logs
+    assert "Check the original PDF (report.pdf, page(s) 17). Only part of the text could be read." in logs
     assert cli.main([str(tmp_path), "-y", "--no-open", "--details"]) == 0
     assert "video-25.mp4" in capsys.readouterr().out
 
@@ -354,7 +394,7 @@ def test_image_only_pdf_page_is_reported_and_kept_in_pack(tmp_path, monkeypatch,
         assert PROMPTS["en"]["ocr_sources"] in prompt
     else:
         recognize.assert_not_called()
-        assert "supplier-offer.pdf — PDF pages with no extractable text: 2" in captured.out
+        assert "Check the original PDF (supplier-offer.pdf, page(s) 2). No text could be read." in captured.out
         assert elements[1].get("extraction") == "no-extractable-text"
         assert elements[1].text is None
         assert PROMPTS["en"]["ocr_sources"] not in prompt
@@ -368,7 +408,7 @@ def test_pdf_warning_groups_page_ranges(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(cli, "parse_selected", lambda _, **_kwargs: ParsedFile("PDF", "Text", pages))
     assert cli.main([str(tmp_path), "-y", "--lang", "tr", "--no-open"]) == 0
     logs = capsys.readouterr().out
-    assert "report.pdf — Şu PDF sayfalarından metin alınamadı: 2–4, 6, 8–9" in logs
+    assert "Orijinal PDF’i kontrol edin (report.pdf, sayfa 2–4, 6, 8–9). Metin okunamadı." in logs
 
 
 def test_only_unusable_selected_files_produce_no_pack(tmp_path, monkeypatch, capsys):

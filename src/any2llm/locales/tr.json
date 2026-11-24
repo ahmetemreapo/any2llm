@@ -62,8 +62,8 @@
     "compound_help": "Belgenin güncel bir Office biçiminde parolasız bir kopyasını kaydedip yeniden deneyin.",
     "no_pdf_text": "metin çıkarılamayan PDF",
     "no_pdf_text_help": "Metni seçilebilen bir PDF kullanın veya gerekli OCR araçlarını kurup --ocr ile yeniden deneyin.",
-    "partial": "Kısmen okunabilen PDF sayfası sayısı: {count}",
-    "no_page_text": "Şu PDF sayfalarından metin alınamadı: {pages}",
+    "partial": "Orijinal PDF’i kontrol edin ({path}, sayfa {pages}). Metnin yalnızca bir bölümü okunabildi.",
+    "no_page_text": "Orijinal PDF’i kontrol edin ({path}, sayfa {pages}). Metin okunamadı.",
     "ocr_pages": "OCR ile okunan PDF sayfaları: {pages}",
     "ocr_tools_missing": "PDF sayfalarında OCR kullanmak için Tesseract ve Poppler’i (pdftoppm) kurup PATH’e ekleyin.",
     "ocr_languages_missing": "{lang} için Tesseract dil verilerini kurun. Kurulu dilleri görmek için tesseract --list-langs komutunu çalıştırın.",
@@ -77,6 +77,7 @@
     "no": "Hayır",
     "saved": "Ayarlar kaydedildi.",
     "setup_again": "Daha sonra any2llm setup ile değiştirebilirsiniz.",
+    "demo_error": "Birlikte gelen örnek belgeler hazırlanamadı.",
     "config_error": "Ayarlar okunamadı. Yeniden ayarlamak için any2llm setup komutunu çalıştırın.",
     "save_error": "Ayarlar kaydedilemedi",
     "save_fix": "Ayar klasörüne yazma izninizi kontrol edip tekrar deneyin.",
@@ -104,7 +105,7 @@
     "paste": "3. Panodaki talimatı mesaj alanına yapıştırıp gönderin.",
     "clipboard": "3. PROMPT.txt dosyasını açın. İçindeki metnin tamamını kopyalayıp mesaj alanına yapıştırın ve gönderin.",
     "next": "Her paket yanıtından sonra aynı sohbete “{continue_word}” yazın. Sıradaki numaralı dosyayı henüz yüklemediyseniz bu mesaja ekleyin.",
-    "help": "Kullanım: any2llm [klasör] [seçenekler]\n\nBulunduğunuz klasördeki dosyaları yapay zekâ sohbeti için hazırlayın.\n\n  any2llm             Bu klasördeki dosyaları seç\n  any2llm -r          Alt klasörleri de tara\n  any2llm setup       Kayıtlı ayarları değiştir (--config de kullanılabilir)\n\nAdı setup olan bir klasörü taramak için any2llm ./setup yazın.\n\nDiğer seçenekler\n  --plain             Numaralı seçim menüsünü kullan\n  --details           Pakete eklenmeyen tüm dosyaları listele\n  -y, --yes           Tüm okunabilir dosyaları seç\n  --lang CODE         Bu çalıştırmada arayüz ve talimat dilini seç\n  --max-tokens SAYI   Bu çalıştırmada her paketin token sayısını sınırla\n  --task METİN        Talimata özel bir görev ekle\n  --ocr               Metin çıkarılamayan PDF sayfalarında İngilizce OCR kullan\n  --ocr-lang LANG     tur veya eng+tur gibi kurulu dillerle OCR kullan\n  --no-open           Klasörü açma\n  -o, --output DİZİN  Dosyaların kaydedileceği klasör (varsayılan: _llm_pack)\n  --include-sensitive  Hassas olarak işaretlenen dosyaları dahil et\n  --exclude GLOB       Desene uyan yolları atla (tekrarlanabilir)\n  -h, --help          Bu yardımı göster",
+    "help": "Kullanım: any2llm [klasör] [seçenekler]\n\nBulunduğunuz klasördeki dosyaları yapay zekâ sohbeti için hazırlayın.\n\n  any2llm             Bu klasördeki dosyaları seç\n  any2llm -r          Alt klasörleri de tara\n  any2llm setup       Kayıtlı ayarları değiştir (--config de kullanılabilir)\n  any2llm demo        Araçla gelen vize örneğini hazırla (--lang tr ile Türkçe)\n\nAdı setup olan bir klasörü taramak için any2llm ./setup yazın.\nAdı demo olan bir klasörü taramak için any2llm ./demo yazın.\n\nDiğer seçenekler\n  --plain             Numaralı seçim menüsünü kullan\n  --details           Pakete eklenmeyen tüm dosyaları listele\n  -y, --yes           Tüm okunabilir dosyaları seç\n  --lang CODE         Bu çalıştırmada arayüz ve talimat dilini seç\n  --max-tokens SAYI   Bu çalıştırmada her paketin token sayısını sınırla\n  --task METİN        Talimata özel bir görev ekle\n  --ocr               Metin çıkarılamayan PDF sayfalarında İngilizce OCR kullan\n  --ocr-lang LANG     tur veya eng+tur gibi kurulu dillerle OCR kullan\n  --no-open           Klasörü açma\n  -o, --output DİZİN  Dosyaların kaydedileceği klasör (varsayılan: _llm_pack)\n  --include-sensitive  Hassas olarak işaretlenen dosyaları dahil et\n  --exclude GLOB       Desene uyan yolları atla (tekrarlanabilir)\n  -h, --help          Bu yardımı göster",
     "language": "Dilinizi seçin"
   },
   "prompt": {

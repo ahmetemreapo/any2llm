@@ -62,8 +62,8 @@
     "compound_help": "Enregistre une copie sans mot de passe dans un format Office récent, puis réessaie.",
     "no_pdf_text": "PDF sans texte extractible",
     "no_pdf_text_help": "Utilise un PDF au texte sélectionnable ou installe les outils d’OCR requis et réessaie avec --ocr.",
-    "partial": "Pages PDF partiellement lisibles : {count}",
-    "no_page_text": "Aucun texte n’a pu être extrait des pages PDF suivantes : {pages}",
+    "partial": "Consultez le PDF original ({path}, p. {pages}). Seule une partie du texte a pu être lue.",
+    "no_page_text": "Consultez le PDF original ({path}, p. {pages}). Aucun texte n’a pu être lu.",
     "ocr_pages": "Pages PDF lues par OCR : {pages}",
     "ocr_tools_missing": "Pour utiliser l’OCR sur les PDF, installe Tesseract et Poppler (pdftoppm) et ajoute-les au PATH.",
     "ocr_languages_missing": "Installe les données linguistiques de Tesseract pour {lang}. Exécute tesseract --list-langs pour voir les langues installées.",
@@ -77,6 +77,7 @@
     "no": "Non",
     "saved": "Préférences enregistrées.",
     "setup_again": "Vous pouvez les modifier avec any2llm setup.",
+    "demo_error": "Impossible de préparer les documents de démonstration fournis.",
     "config_error": "Impossible de lire les préférences. Lancez any2llm setup pour les régler à nouveau.",
     "save_error": "Impossible d’enregistrer les préférences.",
     "save_fix": "Vérifiez vos droits d’écriture dans le dossier de configuration et réessayez.",
@@ -105,7 +106,7 @@
     "clipboard": "3. Ouvrez PROMPT.txt, copiez tout son texte, collez-le dans le champ du message, puis envoyez-le.",
     "next": "Après chaque réponse, envoie « {continue_word} » dans la même conversation. Joins le fichier numéroté suivant à ce message si tu ne l’as pas encore envoyé.",
     "language": "Choisissez votre langue",
-    "help": "Utilisation : any2llm [dossier] [options]\nPréparer des fichiers du dossier courant pour une conversation avec une IA.\n  any2llm            Choisir des fichiers dans ce dossier\n  any2llm -r         Inclure les sous-dossiers\n  any2llm setup      Modifier les préférences (également --config)\nPour parcourir un dossier nommé setup, lancez any2llm ./setup.\nAutres options\n  --plain            Utiliser des menus numérotés\n  --details          Afficher tous les fichiers écartés\n  -y, --yes          Sélectionner tous les fichiers lisibles\n  --lang CODE        Choisir la langue pour cette exécution\n  --max-tokens INT   Limiter la taille de chaque fichier préparé\n  --task TEXT        Ajouter une tâche aux instructions\n  --ocr               Utiliser l’OCR en anglais sur les pages PDF sans texte extractible\n  --ocr-lang LANG     Utiliser l’OCR avec les langues installées, par exemple fra ou eng+fra\n  --no-open          Laisser le dossier fermé\n  -o, --output DIR   Choisir le dossier de sortie (par défaut : _llm_pack)\n  --include-sensitive  Inclure les fichiers signalés comme sensibles\n  --exclude GLOB       Ignorer les chemins correspondant au motif (option répétable)\n  -h, --help         Afficher cette aide"
+    "help": "Utilisation : any2llm [dossier] [options]\nPréparer des fichiers du dossier courant pour une conversation avec une IA.\n  any2llm            Choisir des fichiers dans ce dossier\n  any2llm -r         Inclure les sous-dossiers\n  any2llm setup      Modifier les préférences (également --config)\n  any2llm demo        Préparer l’exemple de révision fourni (sources en anglais ou en turc)\nPour parcourir un dossier nommé setup, lancez any2llm ./setup.\nPour parcourir un dossier nommé demo, lancez any2llm ./demo.\nAutres options\n  --plain            Utiliser des menus numérotés\n  --details          Afficher tous les fichiers écartés\n  -y, --yes          Sélectionner tous les fichiers lisibles\n  --lang CODE        Choisir la langue pour cette exécution\n  --max-tokens INT   Limiter la taille de chaque fichier préparé\n  --task TEXT        Ajouter une tâche aux instructions\n  --ocr               Utiliser l’OCR en anglais sur les pages PDF sans texte extractible\n  --ocr-lang LANG     Utiliser l’OCR avec les langues installées, par exemple fra ou eng+fra\n  --no-open          Laisser le dossier fermé\n  -o, --output DIR   Choisir le dossier de sortie (par défaut : _llm_pack)\n  --include-sensitive  Inclure les fichiers signalés comme sensibles\n  --exclude GLOB       Ignorer les chemins correspondant au motif (option répétable)\n  -h, --help         Afficher cette aide"
   },
   "prompt": {
     "continue": "continuer",

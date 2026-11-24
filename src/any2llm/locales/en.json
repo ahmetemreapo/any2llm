@@ -62,8 +62,8 @@
     "compound_help": "Save a fresh copy in a current Office format without password protection, then try again.",
     "no_pdf_text": "PDF without extractable text",
     "no_pdf_text_help": "Use a PDF with selectable text, or retry with --ocr and the required OCR tools installed.",
-    "partial": "{count} PDF page(s) were only partly readable",
-    "no_page_text": "PDF pages with no extractable text: {pages}",
+    "partial": "Check the original PDF ({path}, page(s) {pages}). Only part of the text could be read.",
+    "no_page_text": "Check the original PDF ({path}, page(s) {pages}). No text could be read.",
     "ocr_pages": "PDF pages read with OCR: {pages}",
     "ocr_tools_missing": "To use PDF OCR, install Tesseract and Poppler (pdftoppm) and make them available on PATH.",
     "ocr_languages_missing": "Install the Tesseract language data for {lang}. Run tesseract --list-langs to see the installed languages.",
@@ -77,6 +77,7 @@
     "no": "No",
     "saved": "Settings saved.",
     "setup_again": "Change them any time with any2llm setup.",
+    "demo_error": "Could not prepare the bundled demo documents.",
     "config_error": "Cannot read settings. Run any2llm setup to set them again.",
     "save_error": "Cannot save settings",
     "save_fix": "Check that you can write to the settings folder, then try again.",
@@ -104,7 +105,7 @@
     "paste": "3. Paste the instructions from your clipboard into the message box and send.",
     "clipboard": "3. Open PROMPT.txt, copy all its text, paste it into the message box and send.",
     "next": "After each batch reply, send “{continue_word}” in the same chat. Attach the next numbered file with that message if it hasn’t been uploaded yet.",
-    "help": "Usage: any2llm [folder] [options]\n\nPrepare files from your current folder for an AI chat.\n\n  any2llm             Choose files in this folder\n  any2llm -r          Also look in subfolders\n  any2llm setup       Change saved settings (also --config)\n\nUse any2llm ./setup to scan a folder named setup.\n\nMore options\n  --plain             Use keyboard-friendly numbered choices\n  --details           List all files that were left out\n  -y, --yes           Select all readable files (useful without prompts)\n  --lang CODE         Set the interface and instruction language for this run\n  --max-tokens INT    Set the size limit per prepared file for this run\n  --task TEXT         Include a custom task in the instructions\n  --ocr               Use English OCR on PDF pages with no extractable text\n  --ocr-lang LANG     Use OCR with installed languages such as tur or eng+tur\n  --no-open           Skip opening the folder\n  -o, --output DIR    Choose where to save files (default: _llm_pack)\n  --include-sensitive  Include files flagged as sensitive\n  --exclude GLOB       Skip matching paths (repeatable)\n  -h, --help          Show this help",
+    "help": "Usage: any2llm [folder] [options]\n\nPrepare files from your current folder for an AI chat.\n\n  any2llm             Choose files in this folder\n  any2llm -r          Also look in subfolders\n  any2llm setup       Change saved settings (also --config)\n  any2llm demo        Prepare the bundled midterm demo (English or Turkish sources)\n\nUse any2llm ./setup to scan a folder named setup.\nUse any2llm ./demo to scan a folder named demo.\n\nMore options\n  --plain             Use keyboard-friendly numbered choices\n  --details           List all files that were left out\n  -y, --yes           Select all readable files (useful without prompts)\n  --lang CODE         Set the interface and instruction language for this run\n  --max-tokens INT    Set the size limit per prepared file for this run\n  --task TEXT         Include a custom task in the instructions\n  --ocr               Use English OCR on PDF pages with no extractable text\n  --ocr-lang LANG     Use OCR with installed languages such as tur or eng+tur\n  --no-open           Skip opening the folder\n  -o, --output DIR    Choose where to save files (default: _llm_pack)\n  --include-sensitive  Include files flagged as sensitive\n  --exclude GLOB       Skip matching paths (repeatable)\n  -h, --help          Show this help",
     "language": "Choose your language"
   },
   "prompt": {

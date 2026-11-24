@@ -62,8 +62,8 @@
     "compound_help": "Salve uma cópia sem senha em um formato atual do Office e tente novamente.",
     "no_pdf_text": "PDF sem texto extraível",
     "no_pdf_text_help": "Use um PDF com texto selecionável ou instale as ferramentas de OCR necessárias e tente novamente com --ocr.",
-    "partial": "Páginas do PDF parcialmente legíveis: {count}",
-    "no_page_text": "Não foi possível extrair texto destas páginas do PDF: {pages}",
+    "partial": "Confira o PDF original ({path}, pág. {pages}). Só foi possível ler parte do texto.",
+    "no_page_text": "Confira o PDF original ({path}, pág. {pages}). Não foi possível ler o texto.",
     "ocr_pages": "Páginas do PDF lidas por OCR: {pages}",
     "ocr_tools_missing": "Para usar OCR em PDFs, instale o Tesseract e o Poppler (pdftoppm) e adicione-os ao PATH.",
     "ocr_languages_missing": "Instale os dados de idioma do Tesseract para {lang}. Execute tesseract --list-langs para ver os idiomas instalados.",
@@ -77,6 +77,7 @@
     "no": "Não",
     "saved": "Preferências salvas.",
     "setup_again": "Você pode alterá-las com any2llm setup.",
+    "demo_error": "Não foi possível preparar os documentos de exemplo incluídos.",
     "config_error": "Não foi possível ler as preferências. Execute any2llm setup para configurá-las de novo.",
     "save_error": "Não foi possível salvar as preferências.",
     "save_fix": "Verifique se você pode gravar na pasta de configuração e tente novamente.",
@@ -105,7 +106,7 @@
     "clipboard": "3. Abra PROMPT.txt, copie todo o texto, cole no campo da mensagem e envie.",
     "next": "Após cada resposta, envie “{continue_word}” na mesma conversa. Anexe o próximo arquivo numerado a essa mensagem se ainda não o tiver enviado.",
     "language": "Escolha seu idioma",
-    "help": "Uso: any2llm [pasta] [opções]\nPrepare arquivos desta pasta para uma conversa com IA.\n  any2llm            Escolher arquivos nesta pasta\n  any2llm -r         Incluir subpastas\n  any2llm setup      Alterar preferências salvas (também --config)\nPara ler uma pasta chamada setup, execute any2llm ./setup.\nMais opções\n  --plain            Usar menus numerados\n  --details          Listar todos os arquivos deixados de fora\n  -y, --yes          Selecionar todos os arquivos legíveis\n  --lang CODE        Escolher o idioma para esta execução\n  --max-tokens INT   Limitar o tamanho de cada arquivo preparado\n  --task TEXT        Incluir uma tarefa nas instruções\n  --ocr               Usar OCR em inglês em páginas PDF sem texto extraível\n  --ocr-lang LANG     Usar OCR com idiomas instalados, como por ou eng+por\n  --no-open          Manter a pasta fechada\n  -o, --output DIR   Escolher a pasta de saída (padrão: _llm_pack)\n  --include-sensitive  Incluir arquivos marcados como confidenciais\n  --exclude GLOB       Ignorar caminhos que correspondam ao padrão (opção repetível)\n  -h, --help         Mostrar esta ajuda"
+    "help": "Uso: any2llm [pasta] [opções]\nPrepare arquivos desta pasta para uma conversa com IA.\n  any2llm            Escolher arquivos nesta pasta\n  any2llm -r         Incluir subpastas\n  any2llm setup      Alterar preferências salvas (também --config)\n  any2llm demo        Preparar o exemplo de estudo incluído (documentos em inglês ou turco)\nPara ler uma pasta chamada setup, execute any2llm ./setup.\nUse any2llm ./demo para examinar uma pasta chamada demo.\nMais opções\n  --plain            Usar menus numerados\n  --details          Listar todos os arquivos deixados de fora\n  -y, --yes          Selecionar todos os arquivos legíveis\n  --lang CODE        Escolher o idioma para esta execução\n  --max-tokens INT   Limitar o tamanho de cada arquivo preparado\n  --task TEXT        Incluir uma tarefa nas instruções\n  --ocr               Usar OCR em inglês em páginas PDF sem texto extraível\n  --ocr-lang LANG     Usar OCR com idiomas instalados, como por ou eng+por\n  --no-open          Manter a pasta fechada\n  -o, --output DIR   Escolher a pasta de saída (padrão: _llm_pack)\n  --include-sensitive  Incluir arquivos marcados como confidenciais\n  --exclude GLOB       Ignorar caminhos que correspondam ao padrão (opção repetível)\n  -h, --help         Mostrar esta ajuda"
   },
   "prompt": {
     "continue": "continuar",

@@ -7,9 +7,11 @@ import subprocess
 import sys
 from collections import Counter
 from collections.abc import Mapping
+from dataclasses import replace
 from pathlib import Path
+from tempfile import TemporaryDirectory, mkdtemp
 
-from . import ocr, tokenizer
+from . import demo, ocr, tokenizer
 from .clipboard import copy_prompt
 from .config import Settings, load_config, save_config, setup
 from .languages import LANGUAGE_NAMES, system_language
@@ -50,7 +52,7 @@ def _arguments(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--details", action="store_true")
     parser.add_argument("--include-sensitive", action="store_true")
     parser.add_argument("--exclude", action="append", default=[], metavar="GLOB")
-    parser.add_argument("-o", "--output", type=Path, default=Path("_llm_pack"))
+    parser.add_argument("-o", "--output", type=Path)
     parser.add_argument("-y", "--yes", action="store_true")
     parser.add_argument("--ui-lang", choices=_LEGACY_LANGUAGES)
     parser.add_argument("-h", "--help", action="store_true")
@@ -117,12 +119,13 @@ def main(argv: list[str] | None = None) -> int:
         print(help_text(override or defaults.lang))
         return 0
     configure = args.config or args.folder == "setup"
+    run_demo = args.folder == "demo" and not configure
     if invalid_config and not configure:
         print(msg["config_error"], file=sys.stderr)
         return 1
 
     interactive = _interactive()
-    if not interactive and (configure or not args.yes):
+    if not interactive and (configure or not (args.yes or run_demo)):
         print(msg["no_setup_terminal" if configure else "no_terminal"], file=sys.stderr)
         return 2
     plain = args.plain or os.environ.get("TERM") == "dumb"
@@ -130,6 +133,8 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if interactive:
             screen.logo()
+        if run_demo:
+            return _run_demo(args, defaults, override or defaults.lang, screen, plain=plain)
         if configure or (saved is None and interactive):
             saved = setup(defaults, menu_language=detected_language, plain=plain)
             if saved is None:
@@ -158,10 +163,35 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
 
+def _run_demo(args: argparse.Namespace, settings: Settings, lang: str, screen: Terminal, *, plain: bool) -> int:
+    source_lang = "tr" if lang == "tr" else "en"
+    msg = MESSAGES[lang]
+    try:
+        with TemporaryDirectory(prefix="any2llm-sources-") as source:
+            demo.copy_sources(source_lang, Path(source))
+            args.folder = source
+            args.yes = True
+            args.task = args.task or demo.QUESTIONS[source_lang]
+            working_dir = Path.cwd()
+            if args.output is None:
+                try:
+                    args.output = Path(mkdtemp(prefix=f"any2llm-demo-{source_lang}-", dir=working_dir))
+                except OSError:
+                    print(f'{msg["write_error"]}: {display_path(working_dir)}', file=sys.stderr)
+                    print(msg["write_fix"], file=sys.stderr)
+                    return 1
+            else:
+                args.output = working_dir / args.output
+            return _pack(args, replace(settings, preset="Single File"), lang, screen, plain=plain)
+    except OSError:
+        print(msg["demo_error"], file=sys.stderr)
+        return 1
+
+
 def _pack(args: argparse.Namespace, settings: Settings, lang: str, screen: Terminal, *, plain: bool) -> int:
     msg = MESSAGES[lang]
     folder = Path(args.folder).absolute()
-    output_dir = folder / args.output
+    output_dir = folder / (args.output or "_llm_pack")
     screen.section(f'{msg["scanning"]}…', "bold cyan", icon="⌕")
     screen.line(f'{msg["folder"]}: {display_path(folder)}', flush=True)
     examined = 0
@@ -245,14 +275,12 @@ def _pack(args: argparse.Namespace, settings: Settings, lang: str, screen: Termi
             screen.line(f"  {display_path(name)} — {msg[kind]}")
         screen.line(msg["sensitive_review"], "bold yellow")
     for path, document in documents_to_pack.items():
-        partial = sum(page.partial for page in document.pages)
-        if partial:
-            warning = msg["partial"].format(count=display_count(partial, msg))
-            print(f"  {display_path(path)} — {warning}")
         missing = [page.number for page in document.pages if page.no_text]
-        if missing:
-            warning = msg["no_page_text"].format(pages=display_page_ranges(missing, msg))
-            print(f"  {display_path(path)} — {warning}")
+        partial = [page.number for page in document.pages if page.partial and not page.no_text]
+        for key, pages in (("no_page_text", missing), ("partial", partial)):
+            if pages:
+                screen.line(msg[key].format(path=display_path(path), pages=display_page_ranges(pages, msg)),
+                            "bold yellow", filenames=(display_path(path),))
         recognized = [page.number for page in document.pages if page.ocr]
         if recognized:
             note = msg["ocr_pages"].format(pages=display_page_ranges(recognized, msg))

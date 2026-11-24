@@ -62,8 +62,8 @@
     "compound_help": "Guarda una copia sin contraseña en un formato de Office actual y vuelve a intentarlo.",
     "no_pdf_text": "PDF del que no se puede extraer texto",
     "no_pdf_text_help": "Usa un PDF con texto seleccionable o instala las herramientas de OCR necesarias y vuelve a intentarlo con --ocr.",
-    "partial": "Páginas del PDF que solo se pudieron leer en parte: {count}",
-    "no_page_text": "No se pudo extraer texto de estas páginas del PDF: {pages}",
+    "partial": "Revisa el PDF original ({path}, pág. {pages}). Solo se pudo leer parte del texto.",
+    "no_page_text": "Revisa el PDF original ({path}, pág. {pages}). No se pudo leer el texto.",
     "ocr_pages": "Páginas del PDF leídas mediante OCR: {pages}",
     "ocr_tools_missing": "Para usar OCR en PDF, instala Tesseract y Poppler (pdftoppm) y añádelos al PATH.",
     "ocr_languages_missing": "Instala los datos de idioma de Tesseract para {lang}. Ejecuta tesseract --list-langs para ver los idiomas instalados.",
@@ -77,6 +77,7 @@
     "no": "No",
     "saved": "Preferencias guardadas.",
     "setup_again": "Puedes cambiarlas con any2llm setup.",
+    "demo_error": "No se pudieron preparar los documentos de ejemplo incluidos.",
     "config_error": "No se pueden leer las preferencias. Ejecuta any2llm setup para configurarlas de nuevo.",
     "save_error": "No se pudieron guardar las preferencias.",
     "save_fix": "Comprueba que tienes permiso para escribir en la carpeta de configuración y vuelve a intentarlo.",
@@ -105,7 +106,7 @@
     "clipboard": "3. Abre PROMPT.txt, copia todo el texto, pégalo en el cuadro del mensaje y envíalo.",
     "next": "Tras cada respuesta, envía «{continue_word}» en el mismo chat. Adjunta el siguiente archivo numerado a ese mensaje si aún no lo has subido.",
     "language": "Elige el idioma",
-    "help": "Uso: any2llm [carpeta] [opciones]\nPrepara archivos de esta carpeta para un chat con IA.\n  any2llm            Selecciona archivos de esta carpeta\n  any2llm -r         Incluye las subcarpetas\n  any2llm setup      Cambia las preferencias guardadas (también --config)\nPara revisar una carpeta llamada setup, usa any2llm ./setup.\nMás opciones\n  --plain            Usa menús numerados\n  --details          Muestra todos los archivos excluidos\n  -y, --yes          Selecciona todos los archivos legibles\n  --lang CODE        Cambia el idioma para esta ejecución\n  --max-tokens INT   Limita el tamaño de cada archivo preparado\n  --task TEXT        Añade una tarea a las instrucciones\n  --ocr               Aplicar OCR en inglés a páginas PDF sin texto extraíble\n  --ocr-lang LANG     Aplicar OCR con idiomas instalados como spa o eng+spa\n  --no-open          Omite la apertura de la carpeta\n  -o, --output DIR   Elige la carpeta de salida (por defecto, _llm_pack)\n  --include-sensitive  Incluye los archivos marcados como confidenciales\n  --exclude GLOB       Omite las rutas que coincidan con el patrón (se puede repetir)\n  -h, --help         Muestra esta ayuda"
+    "help": "Uso: any2llm [carpeta] [opciones]\nPrepara archivos de esta carpeta para un chat con IA.\n  any2llm            Selecciona archivos de esta carpeta\n  any2llm -r         Incluye las subcarpetas\n  any2llm setup      Cambia las preferencias guardadas (también --config)\n  any2llm demo        Preparar el ejemplo incluido para el examen parcial (fuentes en inglés o turco)\nPara revisar una carpeta llamada setup, usa any2llm ./setup.\nUsa any2llm ./demo para revisar una carpeta llamada demo.\nMás opciones\n  --plain            Usa menús numerados\n  --details          Muestra todos los archivos excluidos\n  -y, --yes          Selecciona todos los archivos legibles\n  --lang CODE        Cambia el idioma para esta ejecución\n  --max-tokens INT   Limita el tamaño de cada archivo preparado\n  --task TEXT        Añade una tarea a las instrucciones\n  --ocr               Aplicar OCR en inglés a páginas PDF sin texto extraíble\n  --ocr-lang LANG     Aplicar OCR con idiomas instalados como spa o eng+spa\n  --no-open          Omite la apertura de la carpeta\n  -o, --output DIR   Elige la carpeta de salida (por defecto, _llm_pack)\n  --include-sensitive  Incluye los archivos marcados como confidenciales\n  --exclude GLOB       Omite las rutas que coincidan con el patrón (se puede repetir)\n  -h, --help         Muestra esta ayuda"
   },
   "prompt": {
     "continue": "continuar",

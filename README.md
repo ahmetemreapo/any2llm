@@ -110,7 +110,7 @@ any2llm "./documents" --lang en
 
 1. Choose your preferences on the first run, then select the files to include.
 2. Attach the numbered Markdown files from the `_llm_pack` output folder. Paste the generated `PROMPT.txt` text into the chat.
-3. For multiple batches, follow the terminal’s upload order and send the continuation word after each batch reply. Verify important PDF citations in the original.
+3. For multiple batches, follow the terminal’s upload order and send the continuation word in the same chat when another batch remains. Model behavior can vary. If the model does not move on, resend your last message and name the next batch, attaching its file if you haven’t already. Verify important PDF citations in the original.
 
 Use `-r` to include subfolders, `--max-tokens` to set a per-batch token budget, `--task` to supply your question, and `--details` to see every reported skip. Token counts can differ from your chat service’s.
 

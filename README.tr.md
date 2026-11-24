@@ -110,7 +110,7 @@ any2llm "./belgelerim" --lang tr
 
 1. İlk çalıştırmada tercihlerini belirle ve dahil edilecek dosyaları seç.
 2. `_llm_pack` çıktı klasöründeki numaralı Markdown dosyalarını ekle. Üretilen `PROMPT.txt` metnini sohbete yapıştır.
-3. Birden fazla parça varsa terminalin gösterdiği yükleme sırasını izle ve her parça yanıtından sonra devam sözcüğünü gönder. Önemli PDF atıflarını orijinal belgede kontrol et.
+3. Birden fazla parça varsa terminalin gösterdiği yükleme sırasını izle. İncelenecek parça kaldığında devam sözcüğünü aynı sohbete yaz. Modelin davranışı değişebilir. Model sonraki parçaya geçmezse son mesajını parçanın dosya adını belirterek yeniden gönder ve dosyayı daha önce yüklemediysen ekle. Önemli PDF atıflarını orijinal belgede kontrol et.
 
 Alt klasörler için `-r`, parça başına token bütçesi için `--max-tokens`, kendi sorun için `--task`, atlanan tüm dosyaları görmek için `--details` kullan. Sohbet hizmetinin token hesabı farklı olabilir.
 

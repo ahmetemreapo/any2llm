@@ -1,131 +1,126 @@
 # any2llm
 
-[English](README.md) · Türkçe kullanım rehberi
+**Belgelerini yapay zekâya sor, PDF atıflarını belgenin orijinal sayfalarında kontrol et.**
 
-Dosyalarını yapay zekâ sohbetine ekleyebileceğin daha az sayıda dosyada topla ve cevabı orijinal PDF’ten kontrol et.
+any2llm bir klasördeki PDF, Word, PowerPoint, Excel, metin ve kod dosyalarını sohbet için numaralı Markdown eklerine dönüştürür ve yapıştırmaya hazır bir istem üretir.
 
-**Vizeye hazırlık · 4 kaynak dosya → 1 sohbet eki**
+[English](README.md)
 
-## Kurmadan dene
+![Üç teslimat belgesi iki Markdown ekine dönüşüyor. Yerel sohbet orijinal PDF sayfasına atıf yapıyor ve örnek bu sayfayı doğrulama için gösteriyor.](examples/delivery-dates-chat-demo.gif)
 
-1. **[Örnek paketi indir](https://raw.githubusercontent.com/ahmetemreapo/any2llm/refs/heads/main/examples/midterm/tr/batch_01_of_1.md)** ve sohbetteki ataç ya da + düğmesinden `batch_01_of_1.md` dosyasını ekle. Metin açılırsa bağlantıya basılı tutup dosyayı kaydet veya [paketi GitHub’da görüntüle](examples/midterm/tr/batch_01_of_1.md?plain=1) ve indirme okuna (↓) dokun.
-2. **Şu soruyu kopyala, sohbete yapıştır ve dosyayla birlikte gönder.**
+[Terminal kaydı](examples/delivery-dates-demo.gif)
 
-   > Ölçüm planı hangi araştırma desenine uyuyor? Her sınıfta neyin ölçüldüğünü Excel sayfasına, desenin tanımını da orijinal PDF’in sayfasına atıf yaparak açıkla.
+## Kurulum
 
-3. **Cevabı [orijinal PDF’in 2. sayfasından](https://raw.githubusercontent.com/ahmetemreapo/any2llm/refs/heads/main/src/any2llm/demo_assets/tr/ara%C5%9Ft%C4%B1rma-desenleri.pdf#page=2) kontrol et.** PDF ilk sayfada açılırsa ikinci sayfaya kaydır.
-
-<details>
-<summary>Beklenen cevap</summary>
-
-Plan, **eşdeğer olmayan karşılaştırma gruplu ön test–son test yarı deneysel desene** uyuyor. Rastgele atama yapılmamış iki mevcut sınıfa da etkinlikten önce ve sonra aynı 10 soruluk terim testi uygulanıyor. Sekiz dakika boyunca A sınıfı terimleri hafızadan hatırlamaya çalışıyor, B sınıfı ise terimleri yeniden okuyor ([ölçüm-planı.xlsx](src/any2llm/demo_assets/tr/%C3%B6l%C3%A7%C3%BCm-plan%C4%B1.xlsx), **Ölçüm Planı** sayfası). Bu düzen, `araştırma-desenleri.pdf` dosyasının **2. sayfasındaki** tanıma uyuyor.
-
-</details>
-
-Örnekte Araştırma Yöntemleri vizesi için hazırlanmış dört özgün belge var. [PDF ders notu](src/any2llm/demo_assets/tr/ara%C5%9Ft%C4%B1rma-desenleri.pdf), [PowerPoint sunusu](src/any2llm/demo_assets/tr/%C3%B6l%C3%A7%C3%BCm-ve-yanl%C4%B1l%C4%B1k.pptx), [Word çalışma listesi](src/any2llm/demo_assets/tr/%C3%A7al%C4%B1%C5%9Fma-listesi.docx) ve [Excel ölçüm planı](src/any2llm/demo_assets/tr/%C3%B6l%C3%A7%C3%BCm-plan%C4%B1.xlsx) aynı dersle ilgili. Denemek için yukarıdaki soru yeterli. Komutla üretilen sohbet talimatlarının tamamını [`PROMPT.txt`](examples/midterm/tr/PROMPT.txt) dosyasında görebilirsin.
-
-any2llm dosyaları bilgisayarında hazırlar. Hazır dosyaları seçtiğin sohbet hizmetine sen yüklersin. Ek sayısının azalması, yapay zekânın bir seferde okuyabileceği metin miktarını artırmaz.
-
-## Kur ve Türkçe demoyu çalıştır
-
-Python 3.11 veya üstü, Git ve [pipx](https://pipx.pypa.io/stable/how-to/install-pipx.html) kuruluysa terminale şu komutu yaz.
+Python 3.11 veya üstü, Git ve [pipx](https://pipx.pypa.io/stable/how-to/install-pipx.html) gerekir.
 
 ```sh
 pipx install git+https://github.com/ahmetemreapo/any2llm.git@main
 ```
 
-Terminal `any2llm` komutunu bulamazsa `pipx ensurepath` çalıştır ve terminali kapatıp yeniden aç. pipx kullanmıyorsan [kaynak klasöründen kurulum](#kaynak-klasöründen-kurulum) adımlarını izle. GitHub’daki `v0.1.0` sürümü, komutlu demo eklenmeden önce yayımlandı.
+[Windows, macOS ve Linux için kurulum yardımı](docs/install.md)
+
+[![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB)](pyproject.toml)
+[![MIT lisansı](https://img.shields.io/badge/License-MIT-2E8555)](LICENSE)
+[![Platform uyumluluğu](https://github.com/ahmetemreapo/any2llm/actions/workflows/platforms.yml/badge.svg)](https://github.com/ahmetemreapo/any2llm/actions/workflows/platforms.yml)
+
+## Kimler için?
+
+| Alan | Örnek kullanım |
+| --- | --- |
+| Ofis ve finans | Tedarikçi teklifindeki tarihleri hesap tablosuyla karşılaştır. [Teslimat tarihleri örneğine](#teslimat-tarihleri-iş-örneği) bak. |
+| Hukuk | Sözleşme taslaklarındaki maddeleri karşılaştır, alıntıları orijinal PDF’te kontrol et. |
+| Araştırma | Makalelerdeki yöntemleri özetle, bir tanımı kaynak sayfasından kontrol et. |
+| Yazılım | Bir yapılandırma ayarının kaynak kodda ve teknik notlarda nasıl kullanıldığını sor. |
+| Öğrenciler | Ders slaytlarından, okuma metinlerinden ve çalışma belgelerinden bir alıştırma sorusu çıkar. [Vizeye hazırlık örneğine](#öğrenci-örneği-vizeye-hazırlık) bak. |
+
+## Kurmadan dene
+
+GitHub eki metin olarak açarsa dosya görünümünün üstündeki indirme okuyla (↓) orijinal `.md` dosyasını kaydet.
+
+### Teslimat tarihleri: iş örneği
+
+Pakette bir tedarikçi teklifi (PDF), teslimat çizelgesi (Excel) ve toplantı notu (düz metin) var. [Kaynak dosyalara göz at](examples/delivery-dates/).
+
+1. [Teslimat tarihleri ekini](examples/delivery-dates-pack/batch_01_of_1.md?plain=1) aç, **↓** simgesiyle indir ve yapay zekâ sohbetine ekle.
+2. Şu soruyu yapıştır ve ekle birlikte gönder.
+
+   > Pilot ve ana sevkiyat tarihlerini listele. Her tarih için Excel sayfasına ve orijinal PDF’in sayfasına atıf yap. Metni okunamayan sayfa varsa belirt.
+
+3. Tarihleri [orijinal tedarikçi teklifinin](https://raw.githubusercontent.com/ahmetemreapo/any2llm/main/examples/delivery-dates/supplier-offer.pdf#page=1) 1. ve 3. sayfalarından kontrol et.
+
+<details>
+<summary>Beklenen cevap</summary>
+
+| Sevkiyat | Teslimat tarihi | Kaynaklar |
+| --- | --- | --- |
+| Pilot | 12 Mart 2027 | `delivery-schedule.xlsx`, **Schedule** sayfası ve `supplier-offer.pdf`, **1. sayfa** |
+| Ana | 26 Mart 2027 | `delivery-schedule.xlsx`, **Schedule** sayfası ve `supplier-offer.pdf`, **3. sayfa** |
+
+Paket, metni görsel içinde olduğu için 2. sayfayı işaretler. Navlun notunu okumak için orijinal sayfayı aç.
+
+</details>
+
+### Öğrenci örneği: vizeye hazırlık
+
+Araştırma Yöntemleri için hazırlanan dört dosya (PDF, PowerPoint, Word ve Excel) tek eke sığıyor. Komut satırı aracı [sohbet isteminin tamamını](examples/midterm/tr/PROMPT.txt) da üretir.
+
+1. [Vizeye hazırlık ekini](examples/midterm/tr/batch_01_of_1.md?plain=1) aç, **↓** simgesiyle indir ve yapay zekâ sohbetine ekle.
+2. Şu soruyu yapıştır ve ekle birlikte gönder.
+
+   > Ölçüm planı hangi araştırma desenine uyuyor? Her sınıfta neyin ölçüldüğünü Excel sayfasına, desenin tanımını da orijinal PDF’in sayfasına atıf yaparak açıkla.
+
+3. Tanımı [orijinal PDF’in 2. sayfasından](https://raw.githubusercontent.com/ahmetemreapo/any2llm/main/src/any2llm/demo_assets/tr/ara%C5%9Ft%C4%B1rma-desenleri.pdf#page=2) kontrol et. PDF ilk sayfada açılırsa ikinci sayfaya kaydır.
+
+<details>
+<summary>Beklenen cevap</summary>
+
+Plan, **eşdeğer olmayan karşılaştırma gruplu ön test–son test yarı deneysel desene** uyuyor. Rastgele atama yapılmamış iki mevcut sınıfa etkinlikten önce ve sonra aynı 10 soruluk terim testi uygulanıyor. Sekiz dakika boyunca A sınıfı terimleri hafızadan hatırlıyor, B sınıfı ise terimleri yeniden okuyor. `ölçüm-planı.xlsx` dosyasındaki **Ölçüm Planı** sayfasına ve `araştırma-desenleri.pdf` dosyasının **2. sayfasına** bak.
+
+</details>
+
+Örnek günlük işine uyuyorsa repoya yıldız vermeyi düşünebilirsin.
+
+## Diğer araçlardan farkı ne?
+
+any2llm PDF sayfa numaralarını sohbet eklerinde korur, kaynak atfı isteyen ve çok parçalı sohbette sırayı tarif eden bir istem üretir. Tire, hücrede özellik bilgisi verilmediğini gösterir.
+
+| Araç | PDF sayfa numaraları | Çıktıyı bölme | OCR | Yerel işleme | Örnek girdiler | Sohbet talimatları |
+| --- | --- | --- | --- | --- | --- | --- |
+| **any2llm** | Markdown’da sayfa etiketleri | Token bütçesine göre Markdown parçaları | Okunabilir metni olmayan PDF sayfaları için isteğe bağlı Tesseract | Yerel metin çıkarma ve OCR | PDF, DOCX, PPTX, XLSX, metin, kod | Atıf istemi ve devam mesajları üretir |
+| MarkItDown | — | — | OCR eklentisiyle görsel işleyen model | Yerel dosya dönüştürme mümkün | PDF, Word, PowerPoint, Excel, CSV, HTML | — |
+| Docling | Belgenin kaynak bilgisine kaydedilen sayfa numaraları | Ayarlanabilir token bütçesiyle JSONL parçaları | Yapılandırılabilir OCR motorları | Yerelde çalıştırılabilir | PDF, DOCX, PPTX, XLSX, HTML, görseller | — |
+| Pandoc | — | HTML çıktısını belgenin bölümlerine göre ayırır | — | Yerel komut satırı aracı | Markdown, HTML, LaTeX, DOCX, EPUB | — |
+| Repomix | — | Boyuta göre numaralı çıktı dosyaları | — | Yerel komut satırı aracı | Kod ve Markdown gibi repo dosyaları | Kullanıcının yazdığı talimat dosyasını ekler |
+
+Resmî kaynaklar
+
+- MarkItDown ([proje README’si](https://github.com/microsoft/markitdown/blob/main/README.md), [OCR eklentisi](https://github.com/microsoft/markitdown/tree/main/packages/markitdown-ocr))
+- Docling ([biçimler ve parçalara bölme](https://docling-project.github.io/docling/usage/supported_formats/), [sayfa kaynak bilgisi](https://docling-project.github.io/docling/reference/docling_document/#docling_core.types.doc.ProvenanceItem), [OCR motorları](https://docling-project.github.io/docling/getting_started/installation/#ocr-engines), [yerel çalışma](https://docling-project.github.io/docling/))
+- Pandoc ([girdi biçimleri](https://pandoc.org/MANUAL.html#option--from), [parçalı HTML çıktısı](https://pandoc.org/MANUAL.html#chunked-html))
+- Repomix ([hızlı başlangıç](https://repomix.com/guide/), [çıktı bölme](https://repomix.com/guide/configuration), [özel talimatlar](https://repomix.com/guide/custom-instructions))
+
+## Kendi klasörünü hazırla
+
+Örnekteki yolu kendi klasörünle değiştir. Boşluk içeren yolları tırnak içinde yaz.
 
 ```sh
-any2llm demo --lang tr
+any2llm "./belgelerim" --lang tr
 ```
 
-Örnek belgeler kurulumla gelir. Komut her çalıştığında bulunduğun yerde yeni bir `any2llm-demo-tr-*` klasörü açar. Terminal tam yolu gösterir ve sohbete hangi dosyayı ekleyeceğini, hangi metni yapıştıracağını söyler.
+1. İlk çalıştırmada tercihlerini belirle ve dahil edilecek dosyaları seç.
+2. `_llm_pack` çıktı klasöründeki numaralı Markdown dosyalarını ekle. Üretilen `PROMPT.txt` metnini sohbete yapıştır.
+3. Birden fazla parça varsa terminalin gösterdiği yükleme sırasını izle. İncelenecek parça kaldığında devam sözcüğünü aynı sohbete yaz. Modelin davranışı değişebilir. Model sonraki parçaya geçmezse son mesajını parçanın dosya adını belirterek yeniden gönder ve dosyayı daha önce yüklemediysen ekle. Önemli PDF atıflarını orijinal belgede kontrol et.
 
-Yukarıdaki indirilebilir dosyaları `midterm-pack-tr` adlı yeni bir klasörde yeniden üretmek için şu komutu kullan.
+Alt klasörler için `-r`, parça başına token bütçesi için `--max-tokens`, kendi sorun için `--task`, atlanan tüm dosyaları görmek için `--details` kullan. Sohbet hizmetinin token hesabı farklı olabilir.
 
-```sh
-any2llm demo --lang tr --no-open -o ./midterm-pack-tr
-```
+Terminal ve üretilen istemler `--lang` ile 11 dili destekler (`en`, `zh`, `hi`, `es`, `fr`, `ar`, `bn`, `pt`, `ru`, `ur`, `tr`). [Komut satırı seçeneklerine](docs/SPEC.md#command-line-options) bak.
 
-## Kendi dosyalarını hazırla
+Kurulumla gelen vize örneğini `any2llm demo --lang tr --no-open` ile çalıştır. Komut yeni bir çıktı klasörünün yolunu gösterir.
 
-1. Terminali aç. Aşağıdaki örnekte `./ders-notlarım` yerine kendi klasörünün yolunu yaz. Yol boşluk içeriyorsa tırnakları bırak.
+## Sınırlar, gizlilik ve OCR
 
-   ```sh
-   any2llm "./ders-notlarım" --lang tr
-   ```
-
-2. İlk çalıştırmada ayar ekranı açılırsa dil olarak Türkçeyi seç, sonra dosyaların nasıl bir araya getirileceğini ve sonuç klasörünün açılıp açılmayacağını belirle. Ayarları daha sonra `any2llm setup` komutuyla değiştirebilirsin.
-3. Ok tuşlarıyla dosyalar arasında gez ve boşluk tuşuyla seçimi değiştir. Enter seçimi onaylar. `--plain` numaralı menü açar, `-r` alt klasörleri de tarar, `-y` okunabilir dosyaları otomatik seçer. `any2llm ./demo` adı `demo` olan kendi klasörünü tarar.
-4. Varsayılan çıktı, belge klasörünün içindeki `_llm_pack` klasörüdür. Başka bir konum için `-o sohbet_dosyaları` ekle. Terminal çıktı klasörünü ve eklerin adını gösterir.
-5. `batch_*.md` dosyalarını sohbete ekle. Panoya kopyalanan talimatı yapıştır. Kopyalanmadıysa `PROMPT.txt` dosyasındaki metnin tamamını al. Birden çok ek varsa terminaldeki sırayı ve devam komutunu izle.
-
-Terminal ve sohbet talimatları 11 dili destekler. Dil kodları `en`, `zh`, `hi`, `es`, `fr`, `ar`, `bn`, `pt`, `ru`, `ur` ve `tr`. `--lang tr` o çalıştırmada kayıtlı dil tercihinin yerine geçer. Tüm seçenekler için `any2llm --lang tr --help` çalıştır.
-
-## Gizlilik ve okuma sınırları
-
-- Metin çıkarma ve OCR bilgisayarında çalışır. Kullandığın sohbet hizmetine göndermeden önce hazırlanan dosyaları gözden geçir. Araç bazı parola ve anahtar dosyalarını atlar, metinde tanıdığı anahtar biçimlerini haber verir. Çıkarılan metin olduğu gibi pakette kalır. Token sayımı için tiktoken, sözlüğü önbellekte yoksa indirebilir.
-- PDF’te metin ve fiziksel sayfa numarası korunur. Word ve PowerPoint’te metin ve tablolar, Excel’de hücre değerleri veya formüller, düz metin ve kod dosyalarında kaynak metin alınır. Bozuk, parolalı ve okunamayan belgeler atlanır. Tüm atlamaları görmek için `--details` ekle.
-- Terminal, bir PDF sayfasında metin okuyamadığında veya yalnızca bir bölümünü okuyabildiğinde hangi sayfaya bakacağını söyler. Şekiller, grafikler ve görseller metin okunmuş olsa bile pakette eksik kalabilir. Araç bu kayıpları her zaman algılayamaz. Cevap bir görsele dayanıyorsa orijinal belgeyi aç.
-- Tek kaynak dosyası en fazla 32 MiB, bir PDF en fazla 500 sayfa, bir Office dosyasının açılmış içeriği en fazla 128 MiB olabilir. Araç dosya başına 120 saniyeye kadar işlem yapar. Sohbet hizmetinin yükleme ve metin sınırları ayrıca geçerlidir.
-
-### Taranmış PDF’leri okuma (OCR)
-
-OCR, taranmış sayfalardaki yazıyı metne çevirir. Kullanmak için Poppler’i (`pdftoppm`) ve Tesseract’ı kur, kurulum klasörlerini tam yollarıyla `PATH` değişkenine ekle. Türkçe için Tesseract’ın `tur`, İngilizce için `eng` dil verisini kur. Kurulu dilleri `tesseract --list-langs` ile görebilirsin.
-
-```sh
-any2llm "./ders-notlarım" --lang tr --ocr
-any2llm "./ders-notlarım" --lang tr --ocr-lang tur+eng
-```
-
-`--ocr` İngilizce tanıma yapar. `--ocr-lang tur+eng` Türkçe ve İngilizceyi birlikte kullanır. `--lang tr` ise terminal ve sohbet talimatlarının dilini seçer. OCR yalnızca metni çıkarılamayan PDF sayfalarında çalışır. Önemli adları ve sayıları orijinal sayfadan doğrula.
-
-## Küçük teknik örnek
-
-[Teslim tarihleri örneği](examples/delivery-dates/) bir PDF teklif, bir Excel çizelgesi ve bir toplantı notundan oluşur. Kaynak kod klasöründe şu komutu çalıştır.
-
-```sh
-any2llm examples/delivery-dates -y --no-open --lang tr --task "Teslim tarihlerini bir tabloda listele ve her tarih için kaynak belirt."
-```
-
-İlk kullanımda ayar ekranı açılırsa Türkçeyi seç ve diğer ayarları onayla. `examples/delivery-dates/_llm_pack` içindeki `batch_01_of_1.md` dosyasını ekle ve `PROMPT.txt` içindeki metni sohbete yapıştır.
-
-**Beklenen cevap** Pilot teslimat 12 Mart 2027, ana teslimat 26 Mart 2027. Kaynaklar `delivery-schedule.xlsx` dosyasındaki `Schedule` sayfası ile `supplier-offer.pdf` dosyasının sırasıyla 1. ve 3. sayfalarıdır.
-
-Terminalde şu uyarıyı görürsün. Pakette sonraki sayfanın numarası 3 olarak kalır.
-
-```text
-Orijinal PDF’i kontrol edin (supplier-offer.pdf, sayfa 2). Metin okunamadı.
-```
-
-## Kaynak klasöründen kurulum
-
-Python 3.11 veya üstü ve Git gerekir. Git ile kaynak klasörünü al ve terminalde aç.
-
-```sh
-git clone https://github.com/ahmetemreapo/any2llm.git
-cd any2llm
-```
-
-**Windows PowerShell**
-
-```powershell
-py -3 -m venv "$env:USERPROFILE\.any2llm-env"
-& "$env:USERPROFILE\.any2llm-env\Scripts\python.exe" -m pip install .
-$env:Path = "$env:USERPROFILE\.any2llm-env\Scripts;$env:Path"
-any2llm --lang tr --help
-```
-
-`py` komutu yoksa ilk satırda `py -3` yerine `python` yaz. Her yeni terminalde `$env:Path` satırını yeniden çalıştır.
-
-**macOS ve Linux**
-
-```sh
-python3 -m venv "$HOME/.any2llm-env"
-"$HOME/.any2llm-env/bin/python" -m pip install .
-. "$HOME/.any2llm-env/bin/activate"
-any2llm --lang tr --help
-```
-
-Her yeni terminalde etkinleştirme satırını yeniden çalıştır. Linux’ta `venv` bulunamıyorsa dağıtımın Python venv ve pip paketlerini kur.
+- **Metin çıkarma.** Paketler PDF metnini ve fiziksel sayfa numaralarını, Word ve PowerPoint metin ve tablolarını, görünür Excel sayfalarındaki değer ve formülleri, okunabilir metin ve kodu içerir. Grafikler, görseller ve sayfa düzeni kaybolabilir. Terminal, metni okunamayan veya kısmen okunan PDF sayfalarını gösterir. Cevap önemli bir ayrıntıya veya görsele dayanıyorsa orijinal belgeyi aç.
+- **Dosya sınırları.** Kaynak başına 32 MiB, PDF başına 500 sayfa, açılmış Office arşivi başına 128 MiB ve metin çıkarma için dosya başına 120 saniye. Okunamayan, şifreli ve desteklenmeyen dosyalar bildirilip atlanır. Sohbetin ek ve bağlam sınırları ayrıca geçerlidir.
+- **Gizlilik.** Metin çıkarma ve OCR yerelde çalışır. tiktoken ilk kullanımda sözlüğünü indirebilir. Sohbete yüklemeden önce çıktıyı gözden geçir. Araç kimlik bilgisi içerebilecek yaygın dosya adlarını atlar ve çıkardığı metinde tanıdığı bazı anahtar biçimlerini bildirir. Çıkarılan metin çıktıda kalır. [Güvenlik politikasına](SECURITY.md) bak.
+- **OCR.** Poppler’i (`pdftoppm`) ve Tesseract’ı gerekli dil verileriyle birlikte kur. Kurulum klasörlerini tam yollarıyla `PATH` değişkenine ekle. İngilizce için `--ocr` kullan. Sohbet isteminin dilinden bağımsız olarak kurulu dilleri seçmek için `--ocr-lang` kullan. OCR, okunabilir metni olmayan PDF sayfalarını işlemeyi dener ve metni tanınan sayfaları pakette işaretler. Önemli adları ve sayıları orijinal taramada kontrol et. [Tesseract kurulum rehberi](https://tesseract-ocr.github.io/tessdoc/Installation.html)

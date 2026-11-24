@@ -6,7 +6,7 @@ any2llm turns a folder of PDF, Word, PowerPoint, Excel, text, and code files int
 
 [Türkçe](README.tr.md)
 
-![Three delivery documents become two Markdown attachments. A local chat cites the original PDF page, which the demo shows for verification.](examples/delivery-dates-chat-demo.gif)
+<img src="examples/delivery-dates-chat-demo.gif" width="800" alt="Three delivery documents become two Markdown attachments. A local chat cites the original PDF page, which the demo shows for verification.">
 
 [Terminal-only recording](examples/delivery-dates-demo.gif)
 

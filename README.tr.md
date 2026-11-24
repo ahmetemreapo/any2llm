@@ -6,7 +6,7 @@ any2llm bir klasördeki PDF, Word, PowerPoint, Excel, metin ve kod dosyalarını
 
 [English](README.md)
 
-![Üç teslimat belgesi iki Markdown ekine dönüşüyor. Yerel sohbet orijinal PDF sayfasına atıf yapıyor ve örnek bu sayfayı doğrulama için gösteriyor.](examples/delivery-dates-chat-demo.gif)
+<img src="examples/delivery-dates-chat-demo.gif" width="800" alt="Üç teslimat belgesi iki Markdown ekine dönüşüyor. Yerel sohbet orijinal PDF sayfasına atıf yapıyor ve örnek bu sayfayı doğrulama için gösteriyor.">
 
 [Terminal kaydı](examples/delivery-dates-demo.gif)
 

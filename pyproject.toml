@@ -5,13 +5,15 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "any2llm"
 version = "0.1.0"
-description = "Bundle documents into fewer Markdown attachments for AI chats while keeping original PDF page numbers"
-readme = "README.md"
+description = "Pack mixed documents into Markdown batches for AI chats with original PDF page numbers"
+readme = {file = "docs/pypi.md", content-type = "text/markdown"}
 requires-python = ">=3.11"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [{name = "Ahmet Emre Apo"}]
+keywords = ["pdf", "docx", "pptx", "xlsx", "markdown", "llm", "ocr", "document-processing", "cli"]
 classifiers = [
+    "Environment :: Console",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3 :: Only",
@@ -19,6 +21,8 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
+    "Topic :: Text Processing :: Markup :: Markdown",
+    "Topic :: Utilities",
 ]
 dependencies = [
     "pypdf", "python-docx>=1.1", "python-pptx", "openpyxl", "defusedxml>=0.7.1",
@@ -28,7 +32,9 @@ dependencies = [
 
 [project.urls]
 Repository = "https://github.com/ahmetemreapo/any2llm"
+Documentation = "https://github.com/ahmetemreapo/any2llm/blob/main/docs/SPEC.md"
 Issues = "https://github.com/ahmetemreapo/any2llm/issues"
+Releases = "https://github.com/ahmetemreapo/any2llm/releases"
 
 [project.optional-dependencies]
 dev = ["pytest"]

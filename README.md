@@ -6,7 +6,9 @@ any2llm turns a folder of PDF, Word, PowerPoint, Excel, text, and code files int
 
 [Türkçe](README.tr.md)
 
-![any2llm packs a supplier PDF, spreadsheet, and meeting note and flags the PDF page that needs checking](examples/delivery-dates-demo.gif)
+![Three delivery documents become two Markdown attachments. A local chat cites the original PDF page, which the demo shows for verification.](examples/delivery-dates-chat-demo.gif)
+
+[Terminal-only recording](examples/delivery-dates-demo.gif)
 
 ## Install
 

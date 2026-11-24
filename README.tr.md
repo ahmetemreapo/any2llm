@@ -6,7 +6,9 @@ any2llm bir klasördeki PDF, Word, PowerPoint, Excel, metin ve kod dosyalarını
 
 [English](README.md)
 
-![any2llm PDF teklifi, hesap tablosunu ve toplantı notunu paketliyor ve kontrol edilecek PDF sayfasını gösteriyor](examples/delivery-dates-demo.gif)
+![Üç teslimat belgesi iki Markdown ekine dönüşüyor. Yerel sohbet orijinal PDF sayfasına atıf yapıyor ve örnek bu sayfayı doğrulama için gösteriyor.](examples/delivery-dates-chat-demo.gif)
+
+[Terminal kaydı](examples/delivery-dates-demo.gif)
 
 ## Kurulum
 
@@ -26,7 +28,7 @@ pipx install git+https://github.com/ahmetemreapo/any2llm.git@main
 
 | Alan | Örnek kullanım |
 | --- | --- |
-| Ofis ve finans | Tedarikçi teklifindeki tarihleri hesap tablosuyla karşılaştır. [Teslimat tarihleri örneğine](#iş-örneği-teslimat-tarihleri) bak. |
+| Ofis ve finans | Tedarikçi teklifindeki tarihleri hesap tablosuyla karşılaştır. [Teslimat tarihleri örneğine](#teslimat-tarihleri-iş-örneği) bak. |
 | Hukuk | Sözleşme taslaklarındaki maddeleri karşılaştır, alıntıları orijinal PDF’te kontrol et. |
 | Araştırma | Makalelerdeki yöntemleri özetle, bir tanımı kaynak sayfasından kontrol et. |
 | Yazılım | Bir yapılandırma ayarının kaynak kodda ve teknik notlarda nasıl kullanıldığını sor. |
@@ -36,7 +38,7 @@ pipx install git+https://github.com/ahmetemreapo/any2llm.git@main
 
 GitHub eki metin olarak açarsa dosya görünümünün üstündeki indirme okuyla (↓) orijinal `.md` dosyasını kaydet.
 
-### İş örneği: teslimat tarihleri
+### Teslimat tarihleri: iş örneği
 
 Pakette bir tedarikçi teklifi (PDF), teslimat çizelgesi (Excel) ve toplantı notu (düz metin) var. [Kaynak dosyalara göz at](examples/delivery-dates/).
 

@@ -4,6 +4,7 @@ from unittest.mock import Mock
 from xml.etree import ElementTree
 
 import pytest
+from rich.text import Text
 
 from any2llm import cli, config, ocr, parsers, terminal, tokenizer
 from any2llm.messages import MESSAGES, PROMPTS
@@ -337,7 +338,7 @@ def test_skip_details_progress_and_partial_pdf(tmp_path, monkeypatch, capsys):
     ))
     monkeypatch.setattr(cli.sys.stdout, "isatty", lambda: True)
     assert cli.main([str(tmp_path), "-y", "--no-open"]) == 0
-    logs = capsys.readouterr().out
+    logs = Text.from_ansi(capsys.readouterr().out).plain
     assert "Files examined: 25" in logs and "26 × video" in logs
     assert "video-25.mp4" not in logs and "any2llm --details" in logs
     assert "z-workbook.xls" not in logs

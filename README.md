@@ -1,210 +1,124 @@
 # any2llm
 
-English · [Türkçe kullanım rehberi](README.tr.md)
+**Ask AI about your documents, then check its PDF citations on the original pages.**
 
-Turn your documents into fewer files to attach to an AI chat and check answers against the original PDF pages.
+any2llm turns a folder of PDF, Word, PowerPoint, Excel, text, and code files into Markdown attachments for an AI chat, with numbered batches and a ready-to-paste prompt.
 
-**Midterm practice · 4 source files → 1 chat attachment**
+[Türkçe](README.tr.md)
 
-## Try it without installing anything
+![any2llm packs a supplier PDF, spreadsheet, and meeting note and flags the PDF page that needs checking](examples/delivery-dates-demo.gif)
 
-1. **[Download the sample pack](https://raw.githubusercontent.com/ahmetemreapo/any2llm/refs/heads/main/examples/midterm/en/batch_01_of_1.md)** and use the paperclip or + button in your AI chat to attach `batch_01_of_1.md`. If the link opens as text, press and hold the link to save it or use the download arrow (↓) in the [GitHub preview](examples/midterm/en/batch_01_of_1.md?plain=1).
-2. **Paste this question into the chat** and send it with the attachment.
+## Install
 
-   > Which research design fits the measurement plan? Cite the Excel sheet for what was measured in each class and the original PDF page for the design definition.
-
-3. **Check the answer in the [original PDF, page 2 of 2](https://raw.githubusercontent.com/ahmetemreapo/any2llm/refs/heads/main/src/any2llm/demo_assets/en/research-designs.pdf#page=2).** If the PDF opens on page 1, scroll to page 2.
-
-<details>
-<summary>Expected answer</summary>
-
-The plan uses a **quasi-experimental pretest–posttest design with a nonequivalent comparison group**. Both existing classes take the same 10-item terms test before and after the activity, with no random assignment. Class A recalls the terms from memory and Class B rereads them, each for eight minutes ([measurement-plan.xlsx](src/any2llm/demo_assets/en/measurement-plan.xlsx), **Plan** sheet). That matches the definition in `research-designs.pdf`, **page 2**.
-
-</details>
-
-The pack contains four original practice documents for the same research methods course. They include a [PDF reading](src/any2llm/demo_assets/en/research-designs.pdf), [PowerPoint slides](src/any2llm/demo_assets/en/measurement-and-bias.pptx), a [Word checklist](src/any2llm/demo_assets/en/study-checklist.docx), and an [Excel measurement plan](src/any2llm/demo_assets/en/measurement-plan.xlsx). The question above is sufficient for this tryout. The CLI also generates [`PROMPT.txt`](examples/midterm/en/PROMPT.txt) with full chat instructions.
-
-any2llm prepares files on your computer. You upload the prepared files to the chat service you choose. Fewer attachments help with file-count limits. The model’s context limit still applies.
-
-[![Platform compatibility](https://github.com/ahmetemreapo/any2llm/actions/workflows/platforms.yml/badge.svg)](https://github.com/ahmetemreapo/any2llm/actions/workflows/platforms.yml)
-
-## Install and run the bundled demo
-
-With Python 3.11 or newer, Git, and [pipx](https://pipx.pypa.io/stable/how-to/install-pipx.html) installed, install from the repository’s `main` branch.
+Requires Python 3.11 or newer, Git, and [pipx](https://pipx.pypa.io/stable/how-to/install-pipx.html).
 
 ```sh
 pipx install git+https://github.com/ahmetemreapo/any2llm.git@main
 ```
 
-If your terminal can't find `any2llm`, run `pipx ensurepath` and open a new terminal. See [installing from a local source folder](#install-from-this-source-folder) for a venv option. The GitHub `v0.1.0` release predates the bundled demo.
+[Installation help for Windows, macOS, and Linux](docs/install.md)
 
-```sh
-any2llm demo --lang en
-```
+[![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB)](pyproject.toml)
+[![MIT license](https://img.shields.io/badge/License-MIT-2E8555)](LICENSE)
+[![Platform compatibility](https://github.com/ahmetemreapo/any2llm/actions/workflows/platforms.yml/badge.svg)](https://github.com/ahmetemreapo/any2llm/actions/workflows/platforms.yml)
 
-The command uses the included practice documents and creates a fresh `any2llm-demo-en-*` folder in your current directory on each run. The terminal prints the full path and tells you which file to attach and which text to paste. Use `any2llm ./demo` if you have a folder named `demo` that you want to scan.
+## Who is it for?
 
-To reproduce the exact files linked above in a fresh folder, run the following command from any directory.
-
-```sh
-any2llm demo --lang en --no-open -o ./midterm-pack-en
-```
-
-## Prepare your own files
-
-Use the path to your folder in place of `./lectures`. Quote paths that contain spaces.
-
-```sh
-any2llm ./lectures
-```
-
-1. **Open your folder.** Run `any2llm <folder>`, or open a terminal inside your documents folder and run `any2llm`.
-2. **Set your preferences.** On first use, choose a language, how to group the documents, and whether to open the output folder automatically. The wizard starts in your system language if supported and uses English otherwise.
-3. **Select files.** Press Enter to keep all candidates or use the arrow keys and Space to toggle individual files. Use `--plain` for numbered choices or `-r` to include subfolders. any2llm reads the selected files and reports any it cannot use.
-4. **Attach and send.** The terminal shows the path, count, and combined size of the `batch_*.md` files. Attach as many as your chat allows, starting with the first. Paste the instructions from the clipboard or copy them from `PROMPT.txt`.
-5. **Continue through the batches.** After each reply, send the continuation word shown in the terminal. Attach the next batch if you haven't uploaded it yet.
-
-- **Output folder.** The default is `_llm_pack` inside your documents folder. Use `-o chat_files` for a different destination, including when existing output cannot safely be replaced.
-- **Headless sessions.** Use `--no-open` over SSH, in containers, or on servers.
-- **Token budget.** Use `--max-tokens` to cap each batch. The terminal shows whether counts came from `cl100k_base` or an estimate of one token per four characters. Your chat service may count differently.
-
-## Languages
-
-The terminal and generated chat instructions support **11 languages**.
-
-- English (`en`), Simplified Chinese (`zh`), Hindi (`hi`), Spanish (`es`), French (`fr`), Arabic (`ar`)
-- Bengali (`bn`), Portuguese (`pt`), Russian (`ru`), Urdu (`ur`), Turkish (`tr`)
-
-Run `any2llm setup` to save a language or use `--lang CODE` for one run. Use a terminal with right-to-left support for Arabic and Urdu, or use `--plain` for numbered menus.
-
-## Privacy and security
-
-- **Local processing.** Document extraction and OCR run on your machine. You upload the files you choose to your chat service.
-- **Token counting.** tiktoken can download its token vocabulary if it is missing from the cache.
-- **Credential warnings.** The CLI checks extracted text locally for common API key, access token, and private key formats. It shows the filename and finding type and keeps the extracted text in the output. Review every `batch_*.md` file before uploading, even if you see no warning.
-
-See the [security policy](SECURITY.md) to report a vulnerability.
-
-## What gets included
-
-| Source | What the batch keeps |
+| If you work with… | Try this |
 | --- | --- |
-| PDF | Extracted text and physical page numbers. Pages with missing or partial text are marked in the batch. The terminal tells you which original pages to check. PDFs with no usable text are skipped. |
-| Word and PowerPoint | Word paragraphs and tables, plus slide text and tables. |
-| Excel | Cell values or formulas. |
-| Text and code | Source text, including HTML with CSS and JavaScript. |
+| Office and finance records | Reconcile dates in a supplier offer and a spreadsheet. See the [delivery dates example](#work-example-delivery-dates). |
+| Legal documents | Compare clauses across contract drafts and check quoted wording in the original PDF. |
+| Research material | Summarize methods across papers and check a definition against its source page. |
+| Software and documentation | Ask how a configuration setting is used across source files and technical notes. |
+| Course material | Turn lecture slides, readings, and a worksheet into a practice question. See the [midterm example](#student-example-midterm-practice). |
 
-- **Scan filters.** Images, audio, video, and common environment and build directories are skipped. The scan uses simple rules from the root `.gitignore`. Add quoted patterns with `--exclude '*.log' --exclude 'private/'`.
-- **Sensitive filenames.** Files such as `credentials.json`, `id_rsa`, and `server.pem` are skipped by default. Use `--include-sensitive` to let them through the filename filter.
-- **Automatic selection.** Use `-y` to select all candidates that pass the scan filters. Without an interactive terminal, it uses saved settings or temporary defaults.
-- **Skip details.** Use `--details` for the full list of reported skips and `--help` for all options.
+## Try it without installing
 
-### Extraction limits
+If GitHub opens the attachment as text, use the download arrow (↓) at the top of the file view to save the original `.md` file.
 
-| Limit | Maximum |
-| --- | --- |
-| Source file size | 32 MiB per file |
-| PDF length | 500 pages per PDF |
-| Uncompressed Office archive size | 128 MiB per Word, PowerPoint, or Excel archive |
-| Extraction time | 120 seconds per selected file, including OCR |
+### Work example: delivery dates
 
-Files that exceed a limit are skipped. Your chat service sets its own upload limits.
+The pack contains a supplier offer (PDF), a delivery schedule (Excel), and a meeting note (text). [Browse the source files](examples/delivery-dates/).
 
-The pack preserves extracted text and readable tables. Figures, charts, and images embedded in documents can be missing, even when the surrounding text was extracted successfully. any2llm cannot reliably detect these omissions. Open the original document when the answer depends on a visual.
+1. Open the [delivery dates attachment](examples/delivery-dates-pack/batch_01_of_1.md?plain=1), download it with **↓**, and attach it in your AI chat.
+2. Paste this question and send it with the attachment.
 
-### OCR for scanned PDFs
+   > List the pilot and main shipment dates. Cite the Excel sheet and the original PDF page for each date, and flag any page whose text could not be read.
 
-- **Tools.** Install Poppler (`pdftoppm`) and Tesseract with the language data you need. Add their installation directories to `PATH` using absolute paths. any2llm skips the current working directory when looking for these tools. [Tesseract installation guide](https://tesseract-ocr.github.io/tessdoc/Installation.html)
-- **Language.** `--ocr` uses English (`eng`). Use `--ocr-lang` to choose one or more installed languages independently of the terminal language. Run `tesseract --list-langs` to see which languages are available.
-- **Pages and results.** OCR runs locally on PDF pages where text extraction found no usable text. The batch keeps the original page number and marks recognized text with `extraction="ocr"`. The terminal lists pages that still have no usable text. Check important names and numbers against the original page.
-- **Text recovery.** Poppler's `pdftotext` can repair damaged PDF text with or without OCR, using the same `PATH` rules.
+3. Check the dates on pages 1 and 3 of the [original supplier offer](https://raw.githubusercontent.com/ahmetemreapo/any2llm/main/examples/delivery-dates/supplier-offer.pdf#page=1).
 
-```sh
-any2llm ./lectures --ocr
-any2llm ./lectures --ocr-lang tur+eng
-```
-
-## Smaller technical example: delivery dates
-
-The delivery dates example contains a supplier offer (PDF), a delivery schedule (Excel), and a meeting note (text). To run it with the installed CLI, clone the repository for the source files. [Browse the sample files](examples/delivery-dates/)
-
-```sh
-git clone https://github.com/ahmetemreapo/any2llm.git
-cd any2llm
-any2llm examples/delivery-dates -y --no-open --lang en --task "List delivery dates in a table and cite the source for each date."
-```
-
-If first-run setup opens, press Enter at each question to accept the defaults.
-
-In your AI chat, attach `examples/delivery-dates/_llm_pack/batch_01_of_1.md`. Paste the instructions from the clipboard or copy them from `PROMPT.txt` in the same folder, then send the message.
-
-### Expected answer
+<details>
+<summary>Expected answer</summary>
 
 | Shipment | Delivery date | Sources |
 | --- | --- | --- |
-| Pilot | March 12, 2027 | `delivery-schedule.xlsx` (Schedule), `supplier-offer.pdf` (p. 1) |
-| Main | March 26, 2027 | `delivery-schedule.xlsx` (Schedule), `supplier-offer.pdf` (p. 3) |
+| Pilot | March 12, 2027 | `delivery-schedule.xlsx`, **Schedule** sheet, and `supplier-offer.pdf`, **page 1** |
+| Main | March 26, 2027 | `delivery-schedule.xlsx`, **Schedule** sheet, and `supplier-offer.pdf`, **page 3** |
 
-Page 2 of `supplier-offer.pdf` has no extractable text. Check the original page for any additional delivery details.
-
-<details>
-<summary>See what goes into the Markdown attachment</summary>
-
-Page 2 of the offer contains an image with text.
-
-The terminal reports the page that needs checking.
-
-```text
-Check the original PDF (supplier-offer.pdf, page(s) 2). No text could be read.
-```
-
-The batch contains the Excel table and all three physical PDF page numbers. The excerpt omits the manifest and the meeting note.
-
-```text
-<file id="1" name="delivery-schedule.xlsx" type="XLSX">## Schedule
-
-| Shipment | Delivery date |
-| --- | --- |
-| Pilot | 2027-03-12 |
-| Main | 2027-03-26 |</file>
-
-<file id="3" name="supplier-offer.pdf" type="PDF">
-<page number="1">Pilot shipment is due on 2027-03-12.</page>
-<page number="2" extraction="no-extractable-text"></page>
-<page number="3">Main shipment is due on 2027-03-26.</page>
-</file>
-```
-
-Code and HTML stay readable inside file and page blocks. For example, `a < b && c > d` appears exactly as written. A literal closing tag reserved by the pack format gets an extra backslash, so source text containing `</file>` appears as `<\/file>`.
+The batch flags page 2 because its text is in an image. Open the original page to read the freight note.
 
 </details>
 
-![Terminal recording for the delivery dates example](examples/delivery-dates-demo.gif)
+### Student example: midterm practice
 
-## Install from this source folder
+Four research methods practice files (PDF, PowerPoint, Word, and Excel) fit in one attachment. The CLI also generates [the full chat prompt](examples/midterm/en/PROMPT.txt).
 
-Use Python 3.11 or newer with pip and venv. Open a terminal in the source folder containing `pyproject.toml`. These commands install into a private environment without administrator access.
+1. Open the [midterm attachment](examples/midterm/en/batch_01_of_1.md?plain=1), download it with **↓**, and attach it in your AI chat.
+2. Paste this question and send it with the attachment.
 
-**Windows PowerShell**
+   > Which research design fits the measurement plan? Cite the Excel sheet for what was measured in each class and the original PDF page for the design definition.
 
-```powershell
-py -3 -m venv "$env:USERPROFILE\.any2llm-env"
-& "$env:USERPROFILE\.any2llm-env\Scripts\python.exe" -m pip install .
-$env:Path = "$env:USERPROFILE\.any2llm-env\Scripts;$env:Path"
-any2llm --help
-```
+3. Check the definition on [page 2 of the original PDF](https://raw.githubusercontent.com/ahmetemreapo/any2llm/main/src/any2llm/demo_assets/en/research-designs.pdf#page=2). If your viewer opens on page 1, scroll to page 2.
 
-Repeat the `$env:Path` line in a new PowerShell window, or add that Scripts folder to your user PATH once. If you installed Python without the `py` launcher, use `python` in the first command. The setup works without running PowerShell activation scripts.
+<details>
+<summary>Expected answer</summary>
 
-**macOS and Linux** (sh, bash or zsh)
+The plan uses a **quasi-experimental pretest–posttest design with a nonequivalent comparison group**. Two existing classes take the same 10-item terms test before and after the activity, with no random assignment. Class A recalls the terms from memory and Class B rereads them, each for eight minutes. See the **Plan** sheet in `measurement-plan.xlsx` and **page 2** of `research-designs.pdf`.
+
+</details>
+
+If the example helps with work you do, consider giving the repository a star.
+
+## How is this different?
+
+any2llm keeps the PDF page numbers inside the chat attachments and generates a prompt that asks for source citations and guides multi-batch chats. A dash marks a feature left unspecified here.
+
+| Tool | PDF page numbers | Output splitting | OCR | Local processing | Example inputs | Chat instructions |
+| --- | --- | --- | --- | --- | --- | --- |
+| **any2llm** | Page tags in Markdown | Token-budgeted Markdown batches | Optional Tesseract for PDF pages without usable text | Local extraction and OCR | PDF, DOCX, PPTX, XLSX, text, code | Generated citation prompt and continuation messages |
+| MarkItDown | — | — | Vision model via OCR plugin | Local file conversion is available | PDF, Word, PowerPoint, Excel, CSV, HTML | — |
+| Docling | Page numbers in document provenance | JSONL chunks with a configurable token budget | Configurable OCR engines | Local execution is available | PDF, DOCX, PPTX, XLSX, HTML, images | — |
+| Pandoc | — | Section-based chunks in HTML output | — | Local CLI | Markdown, HTML, LaTeX, DOCX, EPUB | — |
+| Repomix | — | Numbered output files by size | — | Local CLI | Repository files such as code and Markdown | Includes a user-written instructions file |
+
+Official sources
+
+- MarkItDown ([project README](https://github.com/microsoft/markitdown/blob/main/README.md), [OCR plugin](https://github.com/microsoft/markitdown/tree/main/packages/markitdown-ocr))
+- Docling ([formats and chunks](https://docling-project.github.io/docling/usage/supported_formats/), [page provenance](https://docling-project.github.io/docling/reference/docling_document/#docling_core.types.doc.ProvenanceItem), [OCR engines](https://docling-project.github.io/docling/getting_started/installation/#ocr-engines), [local execution](https://docling-project.github.io/docling/))
+- Pandoc ([input formats](https://pandoc.org/MANUAL.html#option--from), [chunked HTML](https://pandoc.org/MANUAL.html#chunked-html))
+- Repomix ([quick start](https://repomix.com/guide/), [output splitting](https://repomix.com/guide/configuration), [custom instructions](https://repomix.com/guide/custom-instructions))
+
+## Pack your own folder
+
+Replace the example path with your folder. Keep the quotes around paths with spaces.
 
 ```sh
-python3 -m venv "$HOME/.any2llm-env"
-"$HOME/.any2llm-env/bin/python" -m pip install .
-. "$HOME/.any2llm-env/bin/activate"
-any2llm --help
+any2llm "./documents" --lang en
 ```
 
-Use the activation line in each new terminal. In fish, use `source ~/.any2llm-env/bin/activate.fish`. If the command is missing from PATH, you can always run the environment’s Python with `-m any2llm` from your documents folder.
+1. Choose your preferences on the first run, then select the files to include.
+2. Attach the numbered Markdown files from the `_llm_pack` output folder. Paste the generated `PROMPT.txt` text into the chat.
+3. For multiple batches, follow the terminal’s upload order and send the continuation word after each batch reply. Verify important PDF citations in the original.
 
-On Linux, some distributions package venv and pip separately. If creating the environment fails, install your distribution’s Python venv and pip packages. Availability of prebuilt dependencies depends on your Python version, processor and C library. On platforms where pip needs to compile them, install the compiler and development packages requested by the build (for example Rust for tiktoken, or libxml2 and libxslt headers for lxml).
+Use `-r` to include subfolders, `--max-tokens` to set a per-batch token budget, `--task` to supply your question, and `--details` to see every reported skip. Token counts can differ from your chat service’s.
+
+The terminal and generated prompts support 11 languages via `--lang` (`en`, `zh`, `hi`, `es`, `fr`, `ar`, `bn`, `pt`, `ru`, `ur`, `tr`). See the [CLI reference](docs/SPEC.md#command-line-options).
+
+Run the bundled midterm demo with `any2llm demo --lang en --no-open`. It prints the path to a fresh output folder.
+
+## Limits, privacy, and OCR
+
+- **Extraction.** Batches keep PDF text and physical page numbers, Word and PowerPoint text and tables, visible Excel sheets with values and formulas, and readable text and code. Charts, images, and layout can be lost. The terminal flags PDF pages with missing or partial text. Check the original wherever an answer depends on an important detail or a visual.
+- **File limits.** Up to 32 MiB per source file, 500 pages per PDF, 128 MiB uncompressed per Office archive, and 120 seconds per file for extraction. Unreadable, encrypted, and unsupported files are reported and skipped. Your chat’s attachment and context limits still apply.
+- **Privacy.** Extraction and OCR run locally. tiktoken may download its vocabulary on first use. Review the output before uploading it to a chat. The CLI skips common credential filenames and warns about some credential patterns in extracted text, which stays in the output. See the [security policy](SECURITY.md).
+- **OCR.** Install Poppler (`pdftoppm`) and Tesseract with the language data you need. Add their installation directories to `PATH` as absolute paths. Use `--ocr` for English or `--ocr-lang` to choose installed languages independently of the chat prompt language. OCR tries PDF pages without usable text and marks recognized pages in the batch. Check important names and numbers against the scan. [Tesseract installation guide](https://tesseract-ocr.github.io/tessdoc/Installation.html)

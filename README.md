@@ -1,5 +1,9 @@
 # any2llm
 
+[![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB)](pyproject.toml)
+[![MIT license](https://img.shields.io/badge/License-MIT-2E8555)](LICENSE)
+[![Platform compatibility](https://github.com/ahmetemreapo/any2llm/actions/workflows/platforms.yml/badge.svg)](https://github.com/ahmetemreapo/any2llm/actions/workflows/platforms.yml)
+
 **Ask AI about your documents, then check its PDF citations on the original pages.**
 
 any2llm turns a folder of PDF, Word, PowerPoint, Excel, text, and code files into Markdown attachments for an AI chat, with numbered batches and a ready-to-paste prompt.
@@ -19,10 +23,6 @@ pipx install any2llm
 ```
 
 [Installation help for Windows, macOS, and Linux](docs/install.md)
-
-[![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB)](pyproject.toml)
-[![MIT license](https://img.shields.io/badge/License-MIT-2E8555)](LICENSE)
-[![Platform compatibility](https://github.com/ahmetemreapo/any2llm/actions/workflows/platforms.yml/badge.svg)](https://github.com/ahmetemreapo/any2llm/actions/workflows/platforms.yml)
 
 ## Who is it for?
 

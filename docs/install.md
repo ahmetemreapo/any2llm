@@ -1,6 +1,6 @@
 # Install any2llm
 
-Use Python 3.11 or newer. The [quick install](../README.md#install) uses pipx to install from PyPI. If an existing pipx installation works but your shell cannot find `any2llm`, run `pipx ensurepath` and open a new terminal.
+Use Python 3.11 or newer. The [quick install](../README.md) uses pipx to install from PyPI. If an existing pipx installation works but your shell cannot find `any2llm`, run `pipx ensurepath` and open a new terminal.
 
 ## Run without installing
 
@@ -10,6 +10,16 @@ With [uv](https://docs.astral.sh/uv/getting-started/installation/), `uvx any2llm
 uvx any2llm ./documents
 uvx any2llm mcp ~/Documents
 ```
+
+## Set up a local model for `any2llm ask`
+
+`any2llm ask` needs a model server on your computer. `any2llm check` and packing don't.
+
+1. Install [Ollama](https://ollama.com/download) (Windows, macOS, or Linux) and start it.
+2. Download a small instruction model: `ollama pull qwen3:4b-instruct`. It needs about 2.5 GB of disk and runs on a 6 GB GPU or, more slowly, on the CPU. Larger models such as `qwen3:8b` usually follow the quote format more reliably if you have the memory.
+3. Run `any2llm ask demo` to check the setup.
+
+LM Studio and llama.cpp work too. Start their local server, and any2llm finds it on port 1234 or 8080. For another address, pass `--api http://host:port/v1`.
 
 ## Install from GitHub
 

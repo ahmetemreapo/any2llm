@@ -1,14 +1,14 @@
 # How any2llm compares
 
-Of the tools below, only any2llm keeps PDF page numbers inside the chat attachments and writes a prompt that asks for citations and guides multi-batch chats.
+Of the tools below, only any2llm keeps PDF page numbers inside the chat attachments, writes a prompt that asks for citations, and checks the quotes an answer cites against the original pages.
 
-| Tool | PDF page numbers | Output splitting | OCR | Chat instructions |
-| --- | --- | --- | --- | --- |
-| any2llm | Page tags in Markdown | Token-budgeted batches | Optional local Tesseract | Citation prompt and continuation messages |
-| MarkItDown | — | — | Vision model via plugin | — |
-| Docling | In document provenance | JSONL chunks by token budget | Configurable engines | — |
-| Pandoc | — | Section-based HTML chunks | — | — |
-| Repomix | — | Numbered files by size | — | User-written instructions file |
+| Tool | PDF page numbers | Output splitting | OCR | Chat instructions | Citation check |
+| --- | --- | --- | --- | --- | --- |
+| any2llm | Page tags in Markdown | Token-budgeted batches | Optional local Tesseract | Citation prompt and continuation messages | Each quote against its cited page (`any2llm check`) |
+| MarkItDown | — | — | Vision model via plugin | — | — |
+| Docling | In document provenance | JSONL chunks by token budget | Configurable engines | — | — |
+| Pandoc | — | Section-based HTML chunks | — | — | — |
+| Repomix | — | Numbered files by size | — | User-written instructions file | — |
 
 A dash marks a feature these sources don’t describe.
 

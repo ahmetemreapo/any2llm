@@ -54,7 +54,7 @@ def test_html_file_and_template(tmp_path):
 
 def test_csv_stays_compact_text(tmp_path):
     path = tmp_path / "orders.csv"
-    path.write_text("id,qty\r\n1,40\r\n", encoding="utf-8")
+    path.write_bytes(b"id,qty\r\n1,40\r\n")
     assert parse_file(path) == ParsedFile("CSV", "id,qty\n1,40\n")
 
 

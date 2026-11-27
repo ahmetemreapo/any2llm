@@ -1,10 +1,10 @@
 # any2llm
 
-**Ask AI about your documents, then check its PDF citations on the original pages.**
+**Turn a folder of PDFs, Office files, ebooks, and code into AI-ready Markdown, with the PDF page numbers kept so you can check every citation.**
 
-any2llm turns a folder of PDF, Word, PowerPoint, Excel, text, and code files into Markdown attachments for an AI chat, with numbered batches and a ready-to-paste prompt.
+Use it three ways: attach the output in any AI chat, pipe it into a command-line tool, or connect Claude, Cursor, and other MCP apps directly to your documents.
 
-
+[![PyPI](https://img.shields.io/pypi/v/any2llm?color=3776AB)](https://pypi.org/project/any2llm/)
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB)](pyproject.toml)
 [![MIT license](https://img.shields.io/badge/License-MIT-2E8555)](LICENSE)
 [![Platform compatibility](https://github.com/ahmetemreapo/any2llm/actions/workflows/platforms.yml/badge.svg)](https://github.com/ahmetemreapo/any2llm/actions/workflows/platforms.yml)
@@ -15,15 +15,35 @@ any2llm turns a folder of PDF, Word, PowerPoint, Excel, text, and code files int
 
 [Terminal-only recording](examples/delivery-dates-demo.gif)
 
-## Install
+## Quick start
 
-Requires Python 3.11 or newer and [pipx](https://pipx.pypa.io/stable/how-to/install-pipx.html).
+Try it without a permanent install using [uv](https://docs.astral.sh/uv/getting-started/installation/):
+
+```sh
+uvx any2llm ./documents
+```
+
+Or install it permanently with [pipx](https://pipx.pypa.io/stable/how-to/install-pipx.html) (Python 3.11 or newer):
 
 ```sh
 pipx install any2llm
 ```
 
+| Use it as… | Command | You get |
+| --- | --- | --- |
+| Chat attachments | `any2llm ./documents` | Numbered Markdown files and a citation prompt on your clipboard |
+| A pipe | `any2llm ./documents --stdout \| llm "List every deadline"` | One Markdown stream for any CLI that reads standard input |
+| An MCP server | `claude mcp add any2llm -- uvx any2llm mcp ~/Documents` | Claude, Cursor, and other MCP apps can read your files on request |
+
 [Installation help for Windows, macOS, and Linux](docs/install.md)
+
+## Why any2llm?
+
+- **Citations you can check.** Every PDF fragment keeps its physical page number in a `<page>` tag. Pages without extractable text are flagged, and optional local OCR can read scanned pages.
+- **Mixed folders in one pass.** PDF, Word, PowerPoint, Excel (values and formulas), EPUB, HTML, CSV, Markdown, text, and source code.
+- **Fits any context window.** Token-budgeted batches with a generated prompt that walks the chat through them in order.
+- **Local and careful.** Extraction runs on your computer. Credential files are skipped, likely secrets are flagged, and damaged, encrypted, or binary files are reported instead of crashing the run.
+- **11 languages** for the terminal and the generated prompts.
 
 ## Who is it for?
 
@@ -33,6 +53,7 @@ pipx install any2llm
 | Legal documents | Compare clauses across contract drafts and check quoted wording in the original PDF. |
 | Research material | Summarize methods across papers and check a definition against its source page. |
 | Software and documentation | Ask how a configuration setting is used across source files and technical notes. |
+| Books and long reads | Pack an EPUB or saved web pages and ask for a chapter-by-chapter summary. |
 | Course material | Turn lecture slides, readings, and a worksheet into a practice question. See the [midterm example](#student-example-midterm-practice). |
 
 ## Try it without installing
@@ -88,7 +109,7 @@ any2llm keeps the PDF page numbers inside the chat attachments and generates a p
 
 | Tool | PDF page numbers | Output splitting | OCR | Local processing | Example inputs | Chat instructions |
 | --- | --- | --- | --- | --- | --- | --- |
-| **any2llm** | Page tags in Markdown | Token-budgeted Markdown batches | Optional Tesseract for PDF pages without usable text | Local extraction and OCR | PDF, DOCX, PPTX, XLSX, text, code | Generated citation prompt and continuation messages |
+| **any2llm** | Page tags in Markdown | Token-budgeted Markdown batches | Optional Tesseract for PDF pages without usable text | Local extraction and OCR | PDF, DOCX, PPTX, XLSX, EPUB, HTML, CSV, text, code | Generated citation prompt and continuation messages |
 | MarkItDown | — | — | Vision model via OCR plugin | Local file conversion is available | PDF, Word, PowerPoint, Excel, CSV, HTML | — |
 | Docling | Page numbers in document provenance | JSONL chunks with a configurable token budget | Configurable OCR engines | Local execution is available | PDF, DOCX, PPTX, XLSX, HTML, images | — |
 | Pandoc | — | Section-based chunks in HTML output | — | Local CLI | Markdown, HTML, LaTeX, DOCX, EPUB | — |
@@ -119,9 +140,45 @@ The terminal and generated prompts support 11 languages via `--lang` (`en`, `zh`
 
 Run the bundled midterm demo with `any2llm demo --lang en --no-open`. It prints the path to a fresh output folder.
 
+## Connect Claude, Cursor, and other MCP apps
+
+`any2llm mcp` runs a local [Model Context Protocol](https://modelcontextprotocol.io) server over stdio. It gives the AI app two read-only tools: `list_documents` shows what a folder contains, and `read_documents` returns the extracted Markdown with PDF page tags, in batches when the content is large. The server only reads inside the folder you pass to it.
+
+**Claude Code**
+
+```sh
+claude mcp add any2llm -- uvx any2llm mcp ~/Documents
+```
+
+**Claude Desktop, Cursor, and other apps that use an `mcpServers` file**
+
+```json
+{
+  "mcpServers": {
+    "any2llm": {
+      "command": "uvx",
+      "args": ["any2llm", "mcp", "/Users/you/Documents"]
+    }
+  }
+}
+```
+
+Then ask something like *“Read the contracts folder and list each termination clause with its PDF page.”* If the app can’t find `uvx`, use its full path (`which uvx` on macOS and Linux, `where uvx` on Windows), or install with pipx and use `"command": "any2llm", "args": ["mcp", "…"]`. Add `--ocr` or `--ocr-lang tur` after the folder to read scanned pages.
+
+## Pipe into other tools
+
+`--stdout` prints one unsplit pack to standard output and sends progress and warnings to standard error. It selects every readable file and writes nothing to disk.
+
+```sh
+any2llm ./contracts --stdout | claude -p "Which contract renews automatically? Cite the PDF page."
+any2llm ./papers -r --stdout | llm "Compare the sample sizes across these papers"
+any2llm ./notes --stdout | pbcopy          # macOS clipboard (Linux: wl-copy or xclip, Windows: clip)
+any2llm ./notes --stdout > notes-pack.md
+```
+
 ## Limits, privacy, and OCR
 
-- **Extraction.** Batches keep PDF text and physical page numbers, Word and PowerPoint text and tables, visible Excel sheets with values and formulas, and readable text and code. Charts, images, and layout can be lost. The terminal flags PDF pages with missing or partial text. Check the original wherever an answer depends on an important detail or a visual.
+- **Extraction.** Batches keep PDF text and physical page numbers, Word and PowerPoint text and tables, visible Excel sheets with values and formulas, EPUB chapters in reading order, readable text from saved HTML pages, and text and code. HTML templates (with `{{ }}` or `{% %}` markers) and fragments stay as source code. DRM-protected EPUBs are skipped. Charts, images, and layout can be lost. The terminal flags PDF pages with missing or partial text. Check the original wherever an answer depends on an important detail or a visual.
 - **File limits.** Up to 32 MiB per source file, 500 pages per PDF, 128 MiB uncompressed per Office archive, and 120 seconds per file for extraction. Unreadable, encrypted, and unsupported files are reported and skipped. Your chat’s attachment and context limits still apply.
 - **Privacy.** Extraction and OCR run locally. tiktoken may download its vocabulary on first use. Review the output before uploading it to a chat. The CLI skips common credential filenames and warns about some credential patterns in extracted text, which stays in the output. See the [security policy](SECURITY.md).
 - **OCR.** Install Poppler (`pdftoppm`) and Tesseract with the language data you need. Add their installation directories to `PATH` as absolute paths. Use `--ocr` for English or `--ocr-lang` to choose installed languages independently of the chat prompt language. OCR tries PDF pages without usable text and marks recognized pages in the batch. Check important names and numbers against the scan. [Tesseract installation guide](https://tesseract-ocr.github.io/tessdoc/Installation.html)

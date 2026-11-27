@@ -1,0 +1,29 @@
+name: Bug report
+description: Something went wrong while scanning, extracting, or packing files.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: Include the command you ran and the terminal output. Remove private file names or content first.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+    validations:
+      required: true
+  - type: input
+    id: file
+    attributes:
+      label: File type involved
+      placeholder: PDF, DOCX, XLSX, EPUB, …
+  - type: input
+    id: version
+    attributes:
+      label: any2llm version and operating system
+      placeholder: "0.3.0 on Windows 11, Python 3.12"
+    validations:
+      required: true

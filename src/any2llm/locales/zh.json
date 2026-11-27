@@ -106,7 +106,8 @@
     "clipboard": "3. 打开 PROMPT.txt，复制全部文字，粘贴到消息输入框中，然后发送。",
     "next": "收到每一组的回复后，在同一聊天中发送“{continue_word}”。如果下一个编号文件尚未上传，请在这条消息中添加该文件。",
     "language": "选择语言",
-    "help": "用法：any2llm [文件夹] [选项]\n将当前文件夹中的文件整理为 AI 聊天附件。\n  any2llm            选择此文件夹中的文件\n  any2llm -r         同时查找子文件夹\n  any2llm setup      修改已保存的设置（也可用 --config）\n  any2llm demo        准备随附的期中复习示例（英文或土耳其文资料）\n如需处理名为 setup 的文件夹，请运行 any2llm ./setup。\n如需处理名为 demo 的文件夹，请运行 any2llm ./demo。\n其他选项\n  --plain            使用带序号的菜单\n  --details          列出所有未纳入的文件\n  -y, --yes          选择全部可读取的文件\n  --lang CODE        指定本次运行的语言\n  --max-tokens INT   限制每个生成文件的大小\n  --task TEXT        在指令中加入自定义任务\n  --ocr               对无法提取文本的 PDF 页面使用英语 OCR\n  --ocr-lang LANG     使用已安装的 OCR 语言，例如 chi_sim 或 eng+chi_sim\n  --no-open          完成后不打开文件夹\n  -o, --output DIR   指定保存位置（默认为 _llm_pack）\n  --include-sensitive  包含标记为敏感的文件\n  --exclude GLOB       跳过匹配的路径（可重复使用）\n  -h, --help         显示帮助"
+    "help": "用法：any2llm [文件夹] [选项]\n将当前文件夹中的文件整理为 AI 聊天附件。\n  any2llm            选择此文件夹中的文件\n  any2llm -r         同时查找子文件夹\n  any2llm setup      修改已保存的设置（也可用 --config）\n  any2llm demo        准备随附的期中复习示例（英文或土耳其文资料）\n  any2llm mcp [DIR]   为 Claude、Cursor 等 AI 应用运行本地 MCP 服务器\n如需处理名为 setup 的文件夹，请运行 any2llm ./setup。\n如需处理名为 demo 的文件夹，请运行 any2llm ./demo。\n其他选项\n  --plain            使用带序号的菜单\n  --details          列出所有未纳入的文件\n  -y, --yes          选择全部可读取的文件\n  --lang CODE        指定本次运行的语言\n  --max-tokens INT   限制每个生成文件的大小\n  --task TEXT        在指令中加入自定义任务\n  --ocr               对无法提取文本的 PDF 页面使用英语 OCR\n  --ocr-lang LANG     使用已安装的 OCR 语言，例如 chi_sim 或 eng+chi_sim\n  --no-open          完成后不打开文件夹\n  -o, --output DIR   指定保存位置（默认为 _llm_pack）\n  --stdout            将未拆分的完整内容输出到标准输出，便于管道传递\n  --include-sensitive  包含标记为敏感的文件\n  --exclude GLOB       跳过匹配的路径（可重复使用）\n  -h, --help         显示帮助",
+    "stdout_conflict": "{option} 不能与 --stdout 同时使用，--stdout 只输出一份未拆分的内容。"
   },
   "prompt": {
     "continue": "继续",

@@ -6,17 +6,18 @@ import os
 import re
 import stat
 import subprocess
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterator
 from contextlib import closing
 from dataclasses import dataclass
 from datetime import date, datetime, time
-from html import escape
 from pathlib import Path
 from typing import BinaryIO
 from zipfile import ZipFile
 
 from . import ocr
 from .cleaner import clean_pages, clean_text
+from .epub import EncryptedEpub, epub_text
+from .markup import html_to_text, is_html_document, markdown_table
 from .tools import resolve_tool
 
 _CONTROL = re.compile(r"[\x00-\x08\x0e-\x1f\x7f-\x9f]")
@@ -31,7 +32,7 @@ _MEDIA = {
     **dict.fromkeys((".mp3", ".m4a", ".wav", ".aac", ".flac", ".ogg"), "audio"),
 }
 _SOURCE = {
-    ".c", ".cc", ".cpp", ".cs", ".css", ".go", ".h", ".hpp", ".html", ".java",
+    ".c", ".cc", ".cpp", ".cs", ".css", ".go", ".h", ".hpp", ".htm", ".html", ".java",
     ".js", ".jsx", ".kt", ".lua", ".php", ".pl", ".py", ".rb", ".rs", ".sh",
     ".sql", ".swift", ".ts", ".tsx", ".xml", ".yaml", ".yml", ".json", ".toml",
 }
@@ -99,6 +100,8 @@ def _plain(stream: BinaryIO, path: Path, mime: str) -> ParsedFile | SkippedFile:
             return SkippedFile("binary")
     if text is None:
         return SkippedFile("binary")
+    if suffix in _HTML and is_html_document(text) and (readable := html_to_text(text)):
+        return ParsedFile("HTML", readable)
     # Source files and Markdown can use trailing spaces and blank lines as data.
     content = clean_text(text) if suffix == ".txt" else text.replace("\r\n", "\n").replace("\r", "\n")
     return ParsedFile(suffix[1:].upper() if suffix else "Text", content)
@@ -171,26 +174,6 @@ def _pdf(stream: BinaryIO, path: Path, ocr_lang: str | None) -> ParsedFile | Ski
     return ParsedFile("PDF", text, tuple(pages))
 
 
-def _markdown_table(rows: Iterable[Iterable[object]]) -> str:
-    cells = []
-    for row in rows:
-        values = []
-        for value in row:
-            text = "" if value is None else str(value)
-            text = escape(text, quote=False).replace("\\", "\\\\").replace("|", r"\|")
-            values.append("<br>".join(text.strip().splitlines()))
-        while values and not values[-1]:
-            values.pop()
-        if values:
-            cells.append(values)
-    if not cells:
-        return ""
-    width = max(map(len, cells))
-    # Use the first non-empty row as the table header.
-    cells.insert(1, ["---"] * width)
-    return "\n".join("| " + " | ".join(row + [""] * (width - len(row))) + " |" for row in cells)
-
-
 def _docx(stream: BinaryIO) -> str:
     from docx import Document
     from docx.table import Table
@@ -198,7 +181,7 @@ def _docx(stream: BinaryIO) -> str:
     blocks = []
     for block in Document(stream).iter_inner_content():
         if isinstance(block, Table):
-            blocks.append(_markdown_table([cell.text for cell in row.cells] for row in block.rows))
+            blocks.append(markdown_table([cell.text for cell in row.cells] for row in block.rows))
         else:
             blocks.append(block.text)
     return clean_text("\n\n".join(blocks))
@@ -213,7 +196,7 @@ def _shape_text(shapes) -> Iterator[str]:
         elif shape.has_text_frame:
             yield shape.text
         elif shape.has_table:
-            yield _markdown_table([cell.text for cell in row.cells] for row in shape.table.rows)
+            yield markdown_table([cell.text for cell in row.cells] for row in shape.table.rows)
 
 
 def _pptx(stream: BinaryIO) -> str:
@@ -266,7 +249,7 @@ def _xlsx(stream: BinaryIO) -> str:
             sheet.reset_dimensions()
             cached_sheet.reset_dimensions()
             rows = zip(sheet.iter_rows(), cached_sheet.iter_rows(values_only=True), strict=True)
-            table = _markdown_table(
+            table = markdown_table(
                 (_xlsx_cell(cell, value) for cell, value in zip(cells, values, strict=True))
                 for cells, values in rows
             )
@@ -277,7 +260,8 @@ def _xlsx(stream: BinaryIO) -> str:
         return "\n\n".join(sections)
 
 
-_OFFICE = {".docx": _docx, ".pptx": _pptx, ".xlsx": _xlsx}
+_OFFICE = {".docx": _docx, ".pptx": _pptx, ".xlsx": _xlsx, ".epub": epub_text}
+_HTML = {".htm", ".html", ".xhtml"}
 
 
 def _metadata_skip(path: Path, mime: str) -> str | None:
@@ -333,6 +317,8 @@ def parse_file(path: Path, *, ocr_lang: str | None = None) -> ParsedFile | Skipp
                 stream.seek(0)
                 return ParsedFile(suffix[1:].upper(), _OFFICE[suffix](stream))
             return _plain(stream, path, mime)
+    except EncryptedEpub:
+        return SkippedFile("encrypted")
     except OSError:
         return SkippedFile("unreadable")
     except Exception:

@@ -1,0 +1,34 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json",
+  "name": "io.github.ahmetemreapo/any2llm",
+  "title": "any2llm",
+  "description": "Read local PDF, Office, EPUB, and code files as Markdown with PDF page numbers for citations.",
+  "repository": {
+    "url": "https://github.com/ahmetemreapo/any2llm",
+    "source": "github"
+  },
+  "version": "0.3.0",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "identifier": "any2llm",
+      "version": "0.3.0",
+      "runtimeHint": "uvx",
+      "transport": {
+        "type": "stdio"
+      },
+      "packageArguments": [
+        {
+          "type": "positional",
+          "value": "mcp"
+        },
+        {
+          "type": "positional",
+          "valueHint": "folder",
+          "description": "Folder the server may read. Files outside it are refused.",
+          "isRequired": true
+        }
+      ]
+    }
+  ]
+}

@@ -7,9 +7,11 @@ import subprocess
 import sys
 from collections import Counter
 from collections.abc import Mapping
+from contextlib import nullcontext, redirect_stdout
 from dataclasses import replace
 from pathlib import Path
 from tempfile import TemporaryDirectory, mkdtemp
+from typing import TextIO
 
 from . import demo, ocr, tokenizer
 from .clipboard import copy_prompt
@@ -18,8 +20,7 @@ from .languages import LANGUAGE_NAMES, system_language
 from .messages import MESSAGES, help_text
 from .output import OutputBusy, OutputConflict, write_pack
 from .packer import PRESETS, build_batches
-from .parse_worker import parse_selected
-from .parsers import SkippedFile
+from .pipeline import parse_paths
 from .prompts import master_prompt
 from .scanner import scan_folder
 from .secrets import finding_types
@@ -54,6 +55,7 @@ def _arguments(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--exclude", action="append", default=[], metavar="GLOB")
     parser.add_argument("-o", "--output", type=Path)
     parser.add_argument("-y", "--yes", action="store_true")
+    parser.add_argument("--stdout", action="store_true")
     parser.add_argument("--ui-lang", choices=_LEGACY_LANGUAGES)
     parser.add_argument("-h", "--help", action="store_true")
     try:
@@ -98,6 +100,10 @@ def main(argv: list[str] | None = None) -> int:
     if argv is None:
         _configure_output()
         argv = sys.argv[1:]
+    if argv[:1] == ["mcp"]:
+        from . import mcp
+
+        return mcp.main(argv[1:])
     try:
         saved = load_config()
         invalid_config = False
@@ -118,6 +124,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.help:
         print(help_text(override or defaults.lang))
         return 0
+    if args.stdout and (conflict := _stdout_conflict(args)):
+        print(msg["stdout_conflict"].format(option=conflict), file=sys.stderr)
+        return 2
     configure = args.config or args.folder == "setup"
     run_demo = args.folder == "demo" and not configure
     if invalid_config and not configure:
@@ -125,45 +134,57 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     interactive = _interactive()
-    if not interactive and (configure or not (args.yes or run_demo)):
+    if not interactive and (configure or not (args.yes or run_demo or args.stdout)):
         print(msg["no_setup_terminal" if configure else "no_terminal"], file=sys.stderr)
         return 2
     plain = args.plain or os.environ.get("TERM") == "dumb"
-    screen = Terminal(plain=plain)
-    try:
-        if interactive:
-            screen.logo()
-        if run_demo:
-            return _run_demo(args, defaults, override or defaults.lang, screen, plain=plain)
-        if configure or (saved is None and interactive):
-            saved = setup(defaults, menu_language=detected_language, plain=plain)
-            if saved is None:
-                return 130
-            msg = MESSAGES[saved.lang]
-            try:
-                save_config(saved)
-            except (OSError, RuntimeError):
-                print(msg["save_error"], file=sys.stderr)
-                print(msg["save_fix"], file=sys.stderr)
-                return 1
-            screen.section(msg["saved"], "bold green", icon="✓")
-            screen.line(msg["setup_again"])
-            if configure:
-                return 0
-        settings = saved or defaults
-        lang = override or settings.lang
-        msg = MESSAGES[lang]
-        return _pack(args, settings, lang, screen, plain=plain)
-    except KeyboardInterrupt:
-        print(msg["cancelled"], file=sys.stderr)
-        return 130
-    except EOFError as exc:
-        language = exc.args[0] if exc.args and exc.args[0] in LANGUAGE_NAMES else None
-        print((MESSAGES[language] if language else msg)["input_closed"], file=sys.stderr)
-        return 2
+    stream = sys.stdout
+    # With --stdout, the pack is the only output on standard output.
+    with redirect_stdout(sys.stderr) if args.stdout else nullcontext():
+        screen = Terminal(plain=plain)
+        try:
+            if interactive and not args.stdout:
+                screen.logo()
+            if run_demo:
+                return _run_demo(args, defaults, override or defaults.lang, screen, plain=plain, stream=stream)
+            if configure or (saved is None and interactive and not args.stdout):
+                saved = setup(defaults, menu_language=detected_language, plain=plain)
+                if saved is None:
+                    return 130
+                msg = MESSAGES[saved.lang]
+                try:
+                    save_config(saved)
+                except (OSError, RuntimeError):
+                    print(msg["save_error"], file=sys.stderr)
+                    print(msg["save_fix"], file=sys.stderr)
+                    return 1
+                screen.section(msg["saved"], "bold green", icon="✓")
+                screen.line(msg["setup_again"])
+                if configure:
+                    return 0
+            settings = saved or defaults
+            lang = override or settings.lang
+            msg = MESSAGES[lang]
+            return _pack(args, settings, lang, screen, plain=plain, stream=stream)
+        except KeyboardInterrupt:
+            print(msg["cancelled"], file=sys.stderr)
+            return 130
+        except EOFError as exc:
+            language = exc.args[0] if exc.args and exc.args[0] in LANGUAGE_NAMES else None
+            print((MESSAGES[language] if language else msg)["input_closed"], file=sys.stderr)
+            return 2
 
 
-def _run_demo(args: argparse.Namespace, settings: Settings, lang: str, screen: Terminal, *, plain: bool) -> int:
+def _stdout_conflict(args: argparse.Namespace) -> str:
+    """Name an option that only applies to saved packs."""
+    if args.max_tokens is not None:
+        return "--max-tokens"
+    return "--output" if args.output is not None else ""
+
+
+def _run_demo(
+    args: argparse.Namespace, settings: Settings, lang: str, screen: Terminal, *, plain: bool, stream: TextIO,
+) -> int:
     source_lang = "tr" if lang == "tr" else "en"
     msg = MESSAGES[lang]
     try:
@@ -173,7 +194,9 @@ def _run_demo(args: argparse.Namespace, settings: Settings, lang: str, screen: T
             args.yes = True
             args.task = args.task or demo.QUESTIONS[source_lang]
             working_dir = Path.cwd()
-            if args.output is None:
+            if args.stdout:
+                pass
+            elif args.output is None:
                 try:
                     args.output = Path(mkdtemp(prefix=f"any2llm-demo-{source_lang}-", dir=working_dir))
                 except OSError:
@@ -182,13 +205,15 @@ def _run_demo(args: argparse.Namespace, settings: Settings, lang: str, screen: T
                     return 1
             else:
                 args.output = working_dir / args.output
-            return _pack(args, replace(settings, preset="Single File"), lang, screen, plain=plain)
+            return _pack(args, replace(settings, preset="Single File"), lang, screen, plain=plain, stream=stream)
     except OSError:
         print(msg["demo_error"], file=sys.stderr)
         return 1
 
 
-def _pack(args: argparse.Namespace, settings: Settings, lang: str, screen: Terminal, *, plain: bool) -> int:
+def _pack(
+    args: argparse.Namespace, settings: Settings, lang: str, screen: Terminal, *, plain: bool, stream: TextIO,
+) -> int:
     msg = MESSAGES[lang]
     folder = Path(args.folder).absolute()
     output_dir = folder / (args.output or "_llm_pack")
@@ -223,7 +248,7 @@ def _pack(args: argparse.Namespace, settings: Settings, lang: str, screen: Termi
             print(msg["nested"])
         return 0
 
-    selected = result.candidates if args.yes else select_files(result.candidates, msg, plain=plain)
+    selected = result.candidates if args.yes or args.stdout else select_files(result.candidates, msg, plain=plain)
     if not selected:
         screen.section(msg["none_selected"])
         return 0
@@ -232,16 +257,7 @@ def _pack(args: argparse.Namespace, settings: Settings, lang: str, screen: Termi
         print(msg[error].format(lang=display_path(ocr_lang)), file=sys.stderr)
         ocr_lang = None
     screen.section(msg["packing"], "bold bright_blue", icon="▤", flush=True)
-    documents_to_pack = {}
-    parse_skips = {}
-    for path in selected:
-        parsed = parse_selected(root / path, ocr_lang=ocr_lang)
-        if isinstance(parsed, SkippedFile):
-            parse_skips[path] = parsed.reason
-        elif not parsed.text.strip():
-            parse_skips[path] = "empty_file"
-        else:
-            documents_to_pack[path] = parsed
+    documents_to_pack, parse_skips = parse_paths(root, selected, ocr_lang=ocr_lang)
     if parse_skips:
         _report_skipped(parse_skips, msg, screen, details=args.details)
     if not documents_to_pack:
@@ -249,7 +265,8 @@ def _pack(args: argparse.Namespace, settings: Settings, lang: str, screen: Termi
         return 0
     try:
         documents = build_batches(
-            documents_to_pack, preset=settings.preset, max_tokens=args.max_tokens,
+            documents_to_pack, preset="Single File" if args.stdout else settings.preset,
+            max_tokens=args.max_tokens,
         )
     except ValueError:
         print(msg["limit_error"], file=sys.stderr)
@@ -257,7 +274,8 @@ def _pack(args: argparse.Namespace, settings: Settings, lang: str, screen: Termi
     has_ocr = any(page.ocr for document in documents_to_pack.values() for page in document.pages)
     prompt = master_prompt(list(documents), lang, args.task, has_ocr=has_ocr)
     try:
-        write_pack(output_dir, {**documents, "PROMPT.txt": prompt})
+        if not args.stdout:
+            write_pack(output_dir, {**documents, "PROMPT.txt": prompt})
     except OSError as exc:
         key = "write_error"
         if isinstance(exc, OutputBusy):
@@ -285,6 +303,10 @@ def _pack(args: argparse.Namespace, settings: Settings, lang: str, screen: Termi
         if recognized:
             note = msg["ocr_pages"].format(pages=display_page_ranges(recognized, msg))
             print(f"  {display_path(path)} — {note}")
+    if args.stdout:
+        stream.write("".join(documents.values()))
+        stream.flush()
+        return 0
     copied = copy_prompt(prompt)
     limited = args.max_tokens is not None or PRESETS[settings.preset] is not None
     _handoff(msg, output_dir, len(documents_to_pack), documents, copied, screen, limited=limited)

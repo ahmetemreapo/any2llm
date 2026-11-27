@@ -1,13 +1,13 @@
 # any2llm
 
+**PDF, Office, e-kitap ve kod dosyalarıyla dolu bir klasörü yapay zekâya hazır Markdown’a dönüştür. PDF sayfa numaraları korunur, böylece her atıfı kontrol edebilirsin.**
+
+Üç şekilde kullanabilirsin: çıktıyı herhangi bir yapay zekâ sohbetine ekle, bir komut satırı aracına aktar ya da Claude, Cursor ve diğer MCP uygulamalarını doğrudan belgelerine bağla.
+
 [![PyPI](https://img.shields.io/pypi/v/any2llm?color=3776AB)](https://pypi.org/project/any2llm/)
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB)](pyproject.toml)
 [![MIT lisansı](https://img.shields.io/badge/License-MIT-2E8555)](LICENSE)
 [![Platform uyumluluğu](https://github.com/ahmetemreapo/any2llm/actions/workflows/platforms.yml/badge.svg)](https://github.com/ahmetemreapo/any2llm/actions/workflows/platforms.yml)
-
-**PDF, Office, e-kitap ve kod dosyalarıyla dolu bir klasörü yapay zekâya hazır Markdown’a dönüştür. PDF sayfa numaraları korunur, böylece her atıfı kontrol edebilirsin.**
-
-Üç şekilde kullanabilirsin: çıktıyı herhangi bir yapay zekâ sohbetine ekle, bir komut satırı aracına aktar ya da Claude, Cursor ve diğer MCP uygulamalarını doğrudan belgelerine bağla.
 
 [English](README.md)
 

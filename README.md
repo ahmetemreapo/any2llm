@@ -1,13 +1,13 @@
 # any2llm
 
+**Turn a folder of PDFs, Office files, ebooks, and code into AI-ready Markdown, with the PDF page numbers kept so you can check every citation.**
+
+Use it three ways: attach the output in any AI chat, pipe it into a command-line tool, or connect Claude, Cursor, and other MCP apps directly to your documents.
+
 [![PyPI](https://img.shields.io/pypi/v/any2llm?color=3776AB)](https://pypi.org/project/any2llm/)
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB)](pyproject.toml)
 [![MIT license](https://img.shields.io/badge/License-MIT-2E8555)](LICENSE)
 [![Platform compatibility](https://github.com/ahmetemreapo/any2llm/actions/workflows/platforms.yml/badge.svg)](https://github.com/ahmetemreapo/any2llm/actions/workflows/platforms.yml)
-
-**Turn a folder of PDFs, Office files, ebooks, and code into AI-ready Markdown, with the PDF page numbers kept so you can check every citation.**
-
-Use it three ways: attach the output in any AI chat, pipe it into a command-line tool, or connect Claude, Cursor, and other MCP apps directly to your documents.
 
 [Türkçe](README.tr.md)
 

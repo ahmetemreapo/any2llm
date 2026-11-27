@@ -52,7 +52,7 @@ def test_modern_discovery_and_legacy_handshake(server):
     assert server.handle({"jsonrpc": "2.0", "method": "notifications/initialized"}) is None
 
     tools = _request(server, "tools/list", MODERN)["result"]["tools"]
-    assert [tool["name"] for tool in tools] == ["list_documents", "read_documents"]
+    assert [tool["name"] for tool in tools] == ["list_documents", "read_documents", "check_citations"]
     assert all(tool["annotations"]["readOnlyHint"] for tool in tools)
 
 
@@ -127,3 +127,14 @@ def test_serve_skips_blank_lines():
 def test_invalid_root_is_reported(tmp_path, capsys):
     assert mcp.main([str(tmp_path / "missing"), "--lang", "en"]) == 1
     assert "missing" in capsys.readouterr().err
+
+
+def test_check_citations_confirms_and_rejects_quotes(tmp_path):
+    (tmp_path / "notes.txt").write_text("The freight forwarder confirmed the pickup window.\n")
+    server = mcp.Server(Library(tmp_path, lang="en"))
+    good = _request(server, "tools/call", {"name": "check_citations", "arguments": {
+        "answer": 'Confirmed: "confirmed the pickup window" [notes.txt]'}, **MODERN})["result"]
+    assert not good["isError"] and "1 of 1 citations match" in good["content"][0]["text"]
+    bad = _request(server, "tools/call", {"name": "check_citations", "arguments": {
+        "answer": 'Cancelled: "the pickup was cancelled" [notes.txt]'}, **MODERN})["result"]
+    assert "quote not found" in bad["content"][0]["text"]

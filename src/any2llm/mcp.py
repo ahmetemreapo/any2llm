@@ -23,7 +23,9 @@ _VERSION_KEY = "io.modelcontextprotocol/protocolVersion"
 _CACHE = {"ttlMs": 3_600_000, "cacheScope": "public"}
 INSTRUCTIONS = (
     "any2llm reads local PDF, Office, EPUB, HTML, text, and code files. Call list_documents to see what a folder "
-    "contains, then read_documents. Cite PDF content with the physical page number from its <page> tag."
+    "contains, then read_documents. Cite PDF content with the physical page number from its <page> tag, as a short "
+    "word-for-word quote followed by its source: \"exact words\" [filename, p. N]. Before answering, call "
+    "check_citations with your draft and fix any citation it does not confirm."
 )
 
 PARSE_ERROR, INVALID_REQUEST, METHOD_NOT_FOUND, INVALID_PARAMS, INTERNAL_ERROR = -32700, -32600, -32601, -32602, -32603

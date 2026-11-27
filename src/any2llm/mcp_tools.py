@@ -4,6 +4,8 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
+from .check import render
+from .citations import check_answer, find_citations, resolve_source
 from .messages import MESSAGES
 from .packer import build_batches
 from .parsers import ParsedFile, SkippedFile
@@ -67,6 +69,26 @@ TOOLS = [
         },
         "annotations": {"readOnlyHint": True, "openWorldHint": False},
     },
+    {
+        "name": "check_citations",
+        "title": "Check citations",
+        "description": (
+            "Check an answer's citations against the original documents before you show it to the user. Write each "
+            "citation as a short quote copied word for word, followed by its source: \"exact words\" [filename, p. N] "
+            "(omit \", p. N\" for files without pages). The result marks each citation as found on the cited page, "
+            "found elsewhere (with the right page or file), or not found. Fix or remove failed citations."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "answer": {"type": "string", "description": "The answer text with its citations."},
+                "folder": _FOLDER,
+            },
+            "required": ["answer"],
+            "additionalProperties": False,
+        },
+        "annotations": {"readOnlyHint": True, "openWorldHint": False},
+    },
 ]
 
 
@@ -98,6 +120,8 @@ class Library:
             return self.read_documents(**_options(
                 arguments, {"folder": str, "paths": list, "recursive": bool, "batch": int, "max_tokens": int},
             ))
+        if name == "check_citations":
+            return self.check_citations(**_options(arguments, {"answer": str, "folder": str}))
         raise KeyError(name)
 
     def _folder(self, folder: str) -> Path:
@@ -188,6 +212,17 @@ class Library:
             footer.append(f"More content remains. Call read_documents again with the same arguments and "
                           f"batch={batch + 1}.")
         return "\n".join([*header, *notes, "", batches[batch - 1], *footer])
+
+    def check_citations(self, answer: str, folder: str = ".") -> str:
+        directory = self._folder(folder)
+        result = self._scan(directory, True)
+        available = [path.as_posix() for path in result.candidates]
+        wanted = {resolve_source(citation.source, available) for citation in find_citations(answer)}
+        paths = result.candidates if len(available) <= 50 else [
+            path for path in result.candidates if path.as_posix() in wanted]
+        documents, _ = self._parse(directory, paths[:MAX_FILES])
+        report = check_answer(answer, {path.as_posix(): parsed for path, parsed in documents.items()})
+        return "\n".join(line for _, line in render(report, self.msg))
 
     def _parse(self, directory: Path, paths: list[Path]):
         cached, pending = {}, []

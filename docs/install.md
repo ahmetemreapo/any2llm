@@ -2,6 +2,15 @@
 
 Use Python 3.11 or newer. The [quick install](../README.md#install) uses pipx to install from PyPI. If an existing pipx installation works but your shell cannot find `any2llm`, run `pipx ensurepath` and open a new terminal.
 
+## Run without installing
+
+With [uv](https://docs.astral.sh/uv/getting-started/installation/), `uvx any2llm` downloads any2llm into a cached environment and runs it. MCP app configurations can use the same command.
+
+```sh
+uvx any2llm ./documents
+uvx any2llm mcp ~/Documents
+```
+
 ## Install from GitHub
 
 With Git and pipx installed, use this command to install the current `main` branch from source.

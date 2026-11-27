@@ -16,7 +16,7 @@ The wizard saves preferences in `~/.config/any2llm/config.json` and continues to
 
 ## Daily use
 
-1. Scan the folder, optionally including subdirectories. Ignore hidden entries, common dependency, environment, cache and build directories, and the output directory. Apply root `.gitignore` rules and any `--exclude` globs. Skip potentially sensitive files before extracting text from PDF, DOCX, PPTX, XLSX, code, and plain text. Report sensitive files and extraction failures with reasons and suggested next steps in the active language.
+1. Scan the folder, optionally including subdirectories. Ignore hidden entries, common dependency, environment, cache and build directories, and the output directory. Apply root `.gitignore` rules and any `--exclude` globs. Skip potentially sensitive files before extracting text from PDF, DOCX, PPTX, XLSX, EPUB, HTML, code, and plain text. Report sensitive files and extraction failures with reasons and suggested next steps in the active language.
 2. A single checkbox lists files that pass the discovery filters. All start checked. Use Space to toggle and Enter to confirm. Use `--plain` for numbered choices and full filenames. Read and parse only selected candidates. Skip unusable files and prepare no new pack if none remain.
 3. Write `batch_01_of_N.md` and subsequent numbered batches to `_llm_pack/`. Each starts with an XML `<manifest>` followed by matching `<file>` blocks. Oversized files have numbered parts with a shared file ID. The output folder records which files belong to the pack. Reruns replace or remove only recorded files whose contents still match. For destination conflicts, choose another folder with `-o`.
 4. Save one master prompt to `PROMPT.txt` and automatically try to copy it to the clipboard. Confirm whether the copy succeeded. If the clipboard is unavailable, show how to copy the saved instructions manually. The output folder opens in the system file manager when enabled.
@@ -34,6 +34,23 @@ The sensitive filename filter is case-insensitive. It matches `*.pem`, `*.key`, 
 
 Use `/` as the separator in `--exclude` globs and root `.gitignore` rules. A bare pattern matches names at any depth. A leading slash or a slash within the pattern makes it relative to the scan root. A trailing slash limits the pattern to directories. The root `.gitignore` supports comments and `!` exceptions. The last matching rule takes precedence, and the scan does not descend into excluded directories. If the root `.gitignore` cannot be read, the scan reports it and stops before selecting files.
 
+EPUB books are read in spine order, with the book title as the first heading. Each chapter's XHTML becomes readable text. Books whose `META-INF/encryption.xml` uses anything other than font obfuscation are protected with DRM and skipped as encrypted. HTML files that contain a doctype, `<html>`, or `<body>` and no template markers (`{{`, `{%`, `{#`, `<%`, `<?php`) are converted to text with headings, lists, tables, and preformatted blocks. Scripts, styles, and markup are dropped and image alt text is kept. Other HTML files stay as source code. CSV and TSV files are packed as text.
+
+## Standard output
+
+`--stdout` selects every candidate that passes the scan filters, packs them into one unsplit batch, and writes it to standard output. It writes no files, does not touch the clipboard, and does not run first-run setup. Scan progress, skipped files, page warnings, and credential findings go to standard error. `--max-tokens` and `--output` are rejected with `--stdout`.
+
+## MCP server
+
+`any2llm mcp [DIR]` serves the folder `DIR` (default: the current directory) to AI apps over the Model Context Protocol on stdio. It accepts `--lang`, `--ocr`, and `--ocr-lang`. It answers stateless `2026-07-28` requests, including `server/discover`, and the `initialize` handshake of versions `2025-11-25`, `2025-06-18`, `2025-03-26`, and `2024-11-05`. Requests whose `_meta` names another version get error `-32022` with the supported versions. Only protocol messages are written to standard output.
+
+| Tool | Arguments | Result |
+| --- | --- | --- |
+| `list_documents` | `folder`, `recursive` | Readable files and skipped files with reasons |
+| `read_documents` | `folder`, `paths`, `recursive`, `batch`, `max_tokens` | One batch in the pack format above, with notes on skipped files, pages without text, OCR pages, and possible credentials |
+
+Folders resolve relative to `DIR` and must stay inside it after resolving symbolic links. Requested paths must be candidates of the scan, so hidden, ignored, and sensitive files are never read. `max_tokens` defaults to 25,000 and accepts 1,000 to 200,000. One call reads at most 100 files. A reply that is not the last batch says which batch to request next. Results are deterministic for unchanged files, so each call can request any batch without server-side session state. Invalid arguments return a tool result with `isError: true`.
+
 ## Command-line options
 
 | Option | Effect |
@@ -50,6 +67,7 @@ Use `/` as the separator in `--exclude` globs and root `.gitignore` rules. A bar
 | `-y`, `--yes` | Automatically select all candidates that pass the scan filters |
 | `--include-sensitive` | Bypass the sensitive filename filter for this run |
 | `--exclude GLOB` | Skip matching files and directories. Repeat to add patterns. |
+| `--stdout` | Print one unsplit pack to standard output. See [Standard output](#standard-output). |
 | `--plain` | Use numbered menus |
 | `--details` | List all files left out |
 | `-h`, `--help` | Show help |

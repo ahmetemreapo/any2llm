@@ -6,7 +6,7 @@ from xml.etree import ElementTree
 import pytest
 from rich.text import Text
 
-from any2llm import cli, config, ocr, parsers, terminal, tokenizer
+from any2llm import cli, config, ocr, parsers, pipeline, terminal, tokenizer
 from any2llm.messages import MESSAGES, PROMPTS
 from any2llm.output import write_pack
 
@@ -62,8 +62,8 @@ def test_checkbox_uses_file_names_and_reports_skips(tmp_path, monkeypatch, capsy
     (tmp_path / "notes.txt").write_text("Hello!           \n\n")
     (tmp_path / "broken.xlsx").write_bytes(b"truncated")
     monkeypatch.setattr(tokenizer, "get_encoding", lambda: None)
-    parse = Mock(wraps=cli.parse_selected)
-    monkeypatch.setattr(cli, "parse_selected", parse)
+    parse = Mock(wraps=pipeline.parse_selected)
+    monkeypatch.setattr(pipeline, "parse_selected", parse)
     checkbox = Mock()
 
     def choose():
@@ -331,8 +331,8 @@ def test_skip_details_progress_and_partial_pdf(tmp_path, monkeypatch, capsys):
     (tmp_path / "z-workbook.xls").touch()
     (tmp_path / "report.pdf").touch()
 
-    parse_selected = cli.parse_selected
-    monkeypatch.setattr(cli, "parse_selected", lambda path, **kwargs: (
+    parse_selected = pipeline.parse_selected
+    monkeypatch.setattr(pipeline, "parse_selected", lambda path, **kwargs: (
         ParsedFile("PDF", "Text", (PdfPage(17, "Text", partial=True),))
         if path.suffix == ".pdf" else parse_selected(path, **kwargs)
     ))
@@ -363,7 +363,7 @@ def test_image_only_pdf_page_is_reported_and_kept_in_pack(tmp_path, monkeypatch,
     monkeypatch.setattr(cli, "select_files", lambda *_args, **_kwargs: [Path(sample.name)])
     monkeypatch.setattr(tokenizer, "get_encoding", lambda: None)
     monkeypatch.setattr(parsers, "_pdftotext", lambda *_: "")
-    monkeypatch.setattr(cli, "parse_selected", parsers.parse_file)
+    monkeypatch.setattr(pipeline, "parse_selected", parsers.parse_file)
     setup = Mock(return_value=error)
     recognize = Mock(return_value="Confirm freight costs separately.\n")
     monkeypatch.setattr(ocr, "setup_error", setup)
@@ -406,7 +406,7 @@ def test_pdf_warning_groups_page_ranges(tmp_path, monkeypatch, capsys):
 
     (tmp_path / "report.pdf").touch()
     pages = (PdfPage(1, "Text"), *(PdfPage(n, "", no_text=True) for n in (2, 3, 4, 6, 8, 9)))
-    monkeypatch.setattr(cli, "parse_selected", lambda _, **_kwargs: ParsedFile("PDF", "Text", pages))
+    monkeypatch.setattr(pipeline, "parse_selected", lambda _, **_kwargs: ParsedFile("PDF", "Text", pages))
     assert cli.main([str(tmp_path), "-y", "--lang", "tr", "--no-open"]) == 0
     logs = capsys.readouterr().out
     assert "Orijinal PDF’i kontrol edin (report.pdf, sayfa 2–4, 6, 8–9). Metin okunamadı." in logs
@@ -438,3 +438,26 @@ def test_sensitive_content_warning_lists_only_name_and_types(tmp_path, capsys, c
     assert fake_api_key not in terminal_text and "BEGIN OPENSSH" not in terminal_text
     batch = (tmp_path / "_llm_pack/batch_01_of_1.md").read_text(encoding="utf-8")
     assert fake_api_key in batch and fake_private_key in batch
+
+
+def test_stdout_prints_one_unsplit_pack_and_keeps_logs_on_stderr(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(cli, "_interactive", lambda: False)
+    monkeypatch.setattr(tokenizer, "get_encoding", lambda: None)
+    monkeypatch.setattr(pipeline, "parse_selected", lambda path, **kwargs: parsers.parse_file(path, **kwargs))
+    config.save_config(config.Settings(preset="High Detail"))
+    (tmp_path / "notes.txt").write_text("A line of shipment notes.\n" * 3000, encoding="utf-8")
+    (tmp_path / "photo.png").touch()
+
+    assert cli.main([str(tmp_path), "--stdout", "--lang", "en"]) == 0
+    captured = capsys.readouterr()
+    assert captured.out.startswith('<manifest batch="1" total="1">')
+    assert captured.out.count("<manifest") == 1 and "photo.png" not in captured.out
+    assert f'photo.png — {MESSAGES["en"]["image"]}' in captured.err
+    assert not (tmp_path / "_llm_pack").exists()
+    cli.copy_prompt.assert_not_called()
+
+
+@pytest.mark.parametrize(("extra", "option"), [(["--max-tokens", "500"], "--max-tokens"), (["-o", "out"], "--output")])
+def test_stdout_rejects_saved_pack_options(tmp_path, capsys, extra, option):
+    assert cli.main([str(tmp_path), "--stdout", "--lang", "en", *extra]) == 2
+    assert MESSAGES["en"]["stdout_conflict"].format(option=option) in capsys.readouterr().err

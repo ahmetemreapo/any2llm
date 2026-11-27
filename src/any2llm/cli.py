@@ -56,6 +56,7 @@ def _arguments(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("-o", "--output", type=Path)
     parser.add_argument("-y", "--yes", action="store_true")
     parser.add_argument("--stdout", action="store_true")
+    parser.add_argument("--no-clipboard", action="store_true")
     parser.add_argument("--ui-lang", choices=_LEGACY_LANGUAGES)
     parser.add_argument("-h", "--help", action="store_true")
     try:
@@ -100,10 +101,26 @@ def main(argv: list[str] | None = None) -> int:
     if argv is None:
         _configure_output()
         argv = sys.argv[1:]
+    if argv in (["--version"], ["-V"]):
+        from importlib.metadata import PackageNotFoundError, version
+
+        try:
+            print(f"any2llm {version('any2llm')}")
+        except PackageNotFoundError:
+            print("any2llm")
+        return 0
     if argv[:1] == ["mcp"]:
         from . import mcp
 
         return mcp.main(argv[1:])
+    if argv[:1] == ["ask"]:
+        from . import ask
+
+        return ask.main(argv[1:])
+    if argv[:1] == ["check"]:
+        from . import check
+
+        return check.main(argv[1:])
     try:
         saved = load_config()
         invalid_config = False
@@ -307,9 +324,13 @@ def _pack(
         stream.write("".join(documents.values()))
         stream.flush()
         return 0
-    copied = copy_prompt(prompt)
+    copied = False if args.no_clipboard else copy_prompt(prompt)
     limited = args.max_tokens is not None or PRESETS[settings.preset] is not None
-    _handoff(msg, output_dir, len(documents_to_pack), documents, copied, screen, limited=limited)
+    _handoff(
+        msg, output_dir, len(documents_to_pack), documents, copied, screen, limited=limited,
+        tried_clipboard=not args.no_clipboard,
+    )
+    screen.section(msg["check_hint"].format(folder=_shell_path(args.folder)), "bold bright_cyan", icon="✓")
     if settings.auto_open and not args.no_open and _interactive():
         _open_folder(output_dir)
     return 0
@@ -339,7 +360,7 @@ def _report_skipped(
 
 def _handoff(
     msg: dict[str, str], folder: Path, selected: int, documents: Mapping[str, str],
-    copied: bool, screen: Terminal, *, limited: bool,
+    copied: bool, screen: Terminal, *, limited: bool, tried_clipboard: bool = True,
 ) -> None:
     batches = list(documents)
     count = len(batches)
@@ -356,7 +377,7 @@ def _handoff(
     screen.line(f'{msg["folder"]}: {display_path(folder.resolve())}')
     if copied:
         screen.section(msg["clipboard_copied"], "bold bright_green", icon="✓")
-    else:
+    elif tried_clipboard:
         screen.section(msg["clipboard_failed"], "bold yellow", icon="▲")
     screen.section(msg["open_chat"], "bold bright_magenta", icon="↗")
     if count == 1:
@@ -367,6 +388,12 @@ def _handoff(
     print(msg["paste" if copied else "clipboard"])
     if count > 1:
         print(msg["next"])
+
+
+def _shell_path(folder: str) -> str:
+    """Show the scanned folder the way the user can paste it back into a command."""
+    text = display_path(folder)
+    return f'"{text}"' if any(char.isspace() for char in text) else text
 
 
 def _open_folder(path: Path) -> None:

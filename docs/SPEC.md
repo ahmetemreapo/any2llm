@@ -48,8 +48,42 @@ EPUB books are read in spine order, with the book title as the first heading. Ea
 | --- | --- | --- |
 | `list_documents` | `folder`, `recursive` | Readable files and skipped files with reasons |
 | `read_documents` | `folder`, `paths`, `recursive`, `batch`, `max_tokens` | One batch in the pack format above, with notes on skipped files, pages without text, OCR pages, and possible credentials |
+| `check_citations` | `answer`, `folder` | The [citation check](#citation-check) report for the answer, against the files below `folder` |
 
 Folders resolve relative to `DIR` and must stay inside it after resolving symbolic links. Requested paths must be candidates of the scan, so hidden, ignored, and sensitive files are never read. `max_tokens` defaults to 25,000 and accepts 1,000 to 200,000. One call reads at most 100 files. A reply that is not the last batch says which batch to request next. Results are deterministic for unchanged files, so each call can request any batch without server-side session state. Invalid arguments return a tool result with `isError: true`.
+
+## Asking a local model
+
+`any2llm ask [DIR] [QUESTION…]` answers a question from the documents in `DIR`. The first word is the folder only when it names an existing directory or `demo`; otherwise the folder is the current directory and every word belongs to the question. `demo` copies the bundled midterm sources to a temporary folder and uses the demo question unless one is given. Without a question, an interactive terminal asks for questions in a loop until an empty line, and other input exits with status 2.
+
+The model server comes from `--api`, then `ANY2LLM_API`, then the first of these that answers: Ollama at `http://localhost:11434` (`GET /api/tags`), LM Studio at `http://localhost:1234/v1`, and llama.cpp at `http://localhost:8080/v1` (`GET /models`). A URL whose path ends in `/v1` is treated as OpenAI-compatible. `ANY2LLM_API_KEY` is sent as a bearer token. A host other than `localhost`, `127.0.0.1`, `::1`, or `0.0.0.0` prints a warning that documents will be sent there. The model is `--model`, then `ANY2LLM_MODEL`, then the first model whose name does not mark it as an embedding, reranking, or speech model: the most recently modified one with Ollama, or the first one the server lists.
+
+With Ollama, any2llm reads the model's maximum context from `POST /api/show` (`model_info["<architecture>.context_length"]`) and sends `options.num_ctx` with every request: `--context` or 8,192, capped at that maximum. Models with the `thinking` capability get `think: true` so that reasoning stays in its own field, plus 8,192 extra tokens of `num_predict`. For OpenAI-compatible servers, the context is `--context`, else the loaded context reported by LM Studio (`/api/v0/models`) or llama.cpp (`/props`), else 4,096. `<think>` blocks are removed from streamed text. The minimum context is 2,048.
+
+Documents are packed in the format above with a token budget of 80% of the context left after the system prompt, the question, and the reply allowance (1,536 tokens for the answer and 768 for notes, each at most a quarter of the context), because model tokenizers often need more tokens than `cl100k_base`. If everything fits in one batch, one request streams the answer. Otherwise each batch is sent with a request to copy every sentence about anything the question asks, with its source, or reply `NONE`; the instruction closes the user message as well as forming the system prompt. Each quote in the notes is then grounded: a quote found on its cited page becomes the whole sentence that contains it, and any other quote becomes the most similar sentence in the cited file (similarity ratio at least 0.6, with that sentence's page). Sentences end at `.`, `!`, `?`, their full-width forms, blank lines, and short unpunctuated heading lines. Notes that do not fit one request are merged in groups, up to four rounds, and a final request with its own instructions answers from the notes. If every batch replies `NONE`, the terminal says that no document is relevant. The answer streams to standard output; status lines and the citation report go to standard error. The exit status is 1 when the check fails or finds nothing to confirm.
+
+The system prompt, the note and merge instructions, the answer format with an example, and the question label are localized in the 11 languages. All of them ask for citations in the [checkable form](#citation-check).
+
+## Citation check
+
+`any2llm check [DIR] [ANSWER]` checks an answer against the documents below `DIR` (default: the current directory), scanned recursively with the usual filters. A single argument that is not a directory is the answer. The answer is read from the file `ANSWER`, from standard input when `ANSWER` is `-` or standard input is not a terminal, and otherwise from the clipboard. An answer file inside `DIR` is not treated as a source. In folders with more than 50 candidates, only the cited files are parsed.
+
+A citation is a group in square brackets or parentheses that holds one or more references separated by semicolons (including the Arabic and full-width forms). A reference is a file name with an extension, optionally followed by a comma (also `،`, `，`, `、`) or colon and a locator. The first number of the locator is the first page, and a second number after a dash is the last page, so `p. 3`, `pp. 3–5`, `s. 3`, `стр. 4`, and `第3页` all work. Words before the file name, such as "see" or "from", are ignored. A group that does not start with a quote uses every quote (`"…"`, `“…”`, `«…»`, `„…“`, `「…」`, `『…』`) since the previous citation in the same paragraph. A group that starts with a quote, such as `("exact words" from file.xlsx)`, uses the quotes inside it. Each quote and reference pair is checked separately.
+
+The cited name matches an extracted path exactly, then case-insensitively, then by a unique base name or path suffix. Quotes and page text are compared after NFKC normalization, case folding, joining words hyphenated across lines, removing quote marks, turning typographic dashes into hyphens and table pipes, asterisks, underscores, and number signs into spaces, and collapsing whitespace. An ellipsis splits a quote into parts that must appear in order. A quote of at least 16 characters also matches a passage with a similarity ratio of at least 0.86, as long as every number in the quote also appears in the passage.
+
+| Status | Meaning |
+| --- | --- |
+| `verified` | The quote is on a cited page, or anywhere in a file without pages |
+| `close` | A near match on a cited page or in the file |
+| `other_page` | The quote is on another page of the cited file, which the report names |
+| `other_file` | The quote is in another file, which the report names with its page |
+| `not_found` | The quote is not in any extracted file |
+| `page_missing` | The cited PDF has no such page |
+| `unknown_source` | No extracted file has this name |
+| `no_quote` | The citation has no quote, so only the file and page were checked |
+
+The report passes when at least one citation is `verified` or `close` and none has a failing status (`other_page`, `other_file`, `not_found`, `page_missing`, or `unknown_source`). The exit status is 0 when it passes, 1 otherwise, and 2 when there is no answer to check. `--json` prints the counts and every citation with its status.
 
 ## Command-line options
 
@@ -70,12 +104,18 @@ Folders resolve relative to `DIR` and must stay inside it after resolving symbol
 | `--stdout` | Print one unsplit pack to standard output. See [Standard output](#standard-output). |
 | `--plain` | Use numbered menus |
 | `--details` | List all files left out |
+| `--no-clipboard` | Don't copy the master prompt to the clipboard |
+| `--version` | Print the version |
 | `-h`, `--help` | Show help |
+
+`ask` also accepts `-r`, `--lang`, `--ocr`, `--ocr-lang`, `--exclude`, and `--include-sensitive`, plus `--model NAME`, `--api URL`, `--context TOKENS`, and `--no-check`. `check` accepts `--lang`, `--ocr`, `--ocr-lang`, `--exclude`, `--include-sensitive`, and `--json`.
 
 Packing overrides apply only to the current run. The older `--ui-lang` spelling accepts the same language codes as `--lang`. The former `id` value is still accepted for compatibility and leaves the active language unchanged.
 
 ## Dependencies
 
 Use Python 3.11 or newer. Use pypdf, python-docx, python-pptx, and openpyxl for document extraction. Require Pillow 13.0.0 or newer for python-pptx and defusedxml for Excel XML parsing. Use tiktoken with an offline fallback for token counts, questionary for interactive selection, pyperclip for clipboard access, Rich for terminal formatting, and pytest for tests.
+
+`ask` talks to model servers with the standard library (`urllib`) and needs no extra package.
 
 Optional PDF OCR uses the system commands `pdftoppm` (Poppler) and `tesseract` with local language data. Resolve native PDF tools from absolute PATH entries outside the current working directory. Each render and recognition process has a timeout. The page image is passed to Tesseract in memory.

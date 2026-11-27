@@ -1,0 +1,15 @@
+{
+  "name": "any2llm",
+  "description": "Read local PDF, Office, EPUB, and code files with page numbers, and check every quote an answer cites.",
+  "owner": {
+    "name": "Ahmet Emre Apo",
+    "url": "https://github.com/ahmetemreapo"
+  },
+  "plugins": [
+    {
+      "name": "any2llm",
+      "source": "./plugin",
+      "description": "Answer questions about a folder of documents with page-cited quotes that are checked against the original pages before you see them."
+    }
+  ]
+}

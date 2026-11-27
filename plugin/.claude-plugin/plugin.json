@@ -1,0 +1,13 @@
+{
+  "name": "any2llm",
+  "version": "0.4.0",
+  "description": "Answer questions about a folder of PDFs, Office files, EPUBs, and code with page-cited quotes, checked against the original pages.",
+  "author": {
+    "name": "Ahmet Emre Apo",
+    "url": "https://github.com/ahmetemreapo"
+  },
+  "homepage": "https://github.com/ahmetemreapo/any2llm",
+  "repository": "https://github.com/ahmetemreapo/any2llm",
+  "license": "MIT",
+  "keywords": ["pdf", "documents", "citations", "docx", "xlsx", "pptx", "epub", "ocr"]
+}

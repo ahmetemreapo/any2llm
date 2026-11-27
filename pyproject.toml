@@ -4,14 +4,14 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "any2llm"
-version = "0.3.0"
-description = "Pack PDFs, Office files, EPUBs, and code into AI-ready Markdown with PDF page numbers, for chats, pipes, and MCP apps"
+version = "0.4.0"
+description = "Ask a local model about your PDFs, Office files, and EPUBs, and check that every quoted page citation is real"
 readme = {file = "docs/pypi.md", content-type = "text/markdown"}
 requires-python = ">=3.11"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [{name = "Ahmet Emre Apo"}]
-keywords = ["pdf", "docx", "pptx", "xlsx", "epub", "markdown", "llm", "mcp", "mcp-server", "ocr", "document-processing", "cli"]
+keywords = ["pdf", "docx", "pptx", "xlsx", "epub", "markdown", "llm", "ollama", "local-llm", "citations", "fact-checking", "mcp", "mcp-server", "claude-code", "ocr", "document-processing", "cli"]
 classifiers = [
     "Environment :: Console",
     "Operating System :: OS Independent",

@@ -24,9 +24,9 @@ def master_prompt(batch_names: Sequence[str], lang: str, task: str = "", *, has_
     if has_ocr:
         sections.append(text["ocr_sources"])
     if task:
-        sections.extend((f"{text['task']}: {task}", text["task_evidence"]))
+        sections.extend((f"{text['task']}: {task}", text["task_evidence"], text["citation_format"]))
         if multiple:
             sections.append(text["task_final"])
     else:
-        sections.extend((text["analysis"], text["sources"], text["closing"]))
+        sections.extend((text["analysis"], text["sources"], text["citation_format"], text["closing"]))
     return "\n\n".join(sections) + "\n"

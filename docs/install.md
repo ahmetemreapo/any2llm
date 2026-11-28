@@ -21,6 +21,40 @@ uvx any2llm mcp ~/Documents
 
 LM Studio and llama.cpp work too. Start their local server, and any2llm finds it on port 1234 or 8080. For another address, pass `--api http://host:port/v1`.
 
+## Check optional PDF OCR
+
+Install [Poppler](https://poppler.freedesktop.org/) and
+[Tesseract](https://tesseract-ocr.github.io/tessdoc/Installation.html) with the language data you need.
+Add the folders containing `pdftoppm` and `tesseract` to `PATH` as absolute paths, then open a new terminal.
+
+On macOS and Linux, run:
+
+```sh
+command -v pdftoppm
+command -v tesseract
+tesseract --list-langs
+```
+
+On Windows PowerShell, run:
+
+```powershell
+Get-Command pdftoppm, tesseract -CommandType Application
+tesseract --list-langs
+```
+
+If a command is missing, check where you installed the executable and add its folder to `PATH`.
+If `tesseract --list-langs` does not list the language you need, install its trained data and run the check again.
+Use `--ocr-lang eng` for English or join installed codes with `+`, for example `--ocr-lang eng+tur`.
+`--lang` controls the terminal and prompt language. It does not select an OCR language.
+
+From the checkout, pack the [sample supplier offer](../examples/delivery-dates/supplier-offer.pdf) without calling a model:
+
+```sh
+any2llm examples/delivery-dates --stdout --lang en --ocr-lang eng
+```
+
+Look for the `extraction="ocr"` attribute on page 2 of `supplier-offer.pdf`. Pages 1 and 3 already have a text layer, so they are extracted as text.
+
 ## Install from GitHub
 
 With Git and pipx installed, use this command to install the current `main` branch from source.
